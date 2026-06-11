@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Routes, Route, useParams, useNavigate } from 'react-router-dom';
+import { Routes, Route, useParams, useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import Article from './components/Article';
 import CourseDashboard from './components/CourseDashboard';
@@ -153,9 +153,12 @@ function MainApp() {
     setDb(newDb);
   };
 
+  const location = useLocation();
+  const isArticlePage = location.pathname.includes('/course/');
+
   return (
     <div className="app-container">
-      <Navbar isDarkMode={isDarkMode} toggleTheme={toggleTheme} />
+      {!isArticlePage && <Navbar isDarkMode={isDarkMode} toggleTheme={toggleTheme} />}
       <main className="main-content">
         <Routes>
           <Route 
