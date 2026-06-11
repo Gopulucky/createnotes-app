@@ -59,7 +59,7 @@ const authenticateUser = async (req, res, next) => {
     next();
   } catch (error) {
     console.error('Token verification failed:', error);
-    return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+    return res.status(401).json({ error: `Token verification failed: ${error.message}` });
   }
 };
 
