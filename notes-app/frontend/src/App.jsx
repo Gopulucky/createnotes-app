@@ -89,6 +89,7 @@ function CourseLayout({ db, onDbUpdate, isDarkMode, toggleTheme }) {
 function MainApp() {
   const { currentUser } = useAuth();
   const [db, setDb] = useState(null);
+  const [errorMsg, setErrorMsg] = useState(null);
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
 
   const fetchDb = async () => {
@@ -97,9 +98,13 @@ function MainApp() {
       if (res.ok) {
         const data = await res.json();
         setDb(data);
+      } else {
+        const errText = await res.text();
+        setErrorMsg(`Server Error: ${res.status} - ${errText}`);
       }
     } catch (error) {
       console.error("Failed to fetch data:", error);
+      setErrorMsg(`Network Error: Could not connect to backend. Make sure VITE_API_URL is correct.`);
     }
   };
 
@@ -123,6 +128,21 @@ function MainApp() {
 
   if (!currentUser) {
     return <Login isDarkMode={isDarkMode} />;
+  }
+
+  if (errorMsg) {
+    return (
+      <div style={{ padding: '40px', textAlign: 'center', color: '#ef4444' }}>
+        <h2>Connection Error</h2>
+        <p>{errorMsg}</p>
+        <button 
+          onClick={() => { setErrorMsg(null); fetchDb(); }}
+          style={{ marginTop: '20px', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer' }}
+        >
+          Retry
+        </button>
+      </div>
+    );
   }
 
   if (!db) {
