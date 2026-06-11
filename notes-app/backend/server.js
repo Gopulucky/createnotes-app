@@ -37,6 +37,11 @@ app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Simple root route so the browser doesn't show "Cannot GET /"
+app.get('/', (req, res) => {
+  res.send('✅ CreateNotes Backend is successfully running!');
+});
+
 // Authentication Middleware
 const authenticateUser = async (req, res, next) => {
   const authHeader = req.headers.authorization;
