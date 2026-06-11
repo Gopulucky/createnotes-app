@@ -6,7 +6,8 @@ import multer from 'multer';
 import { fileURLToPath } from 'url';
 import { exec } from 'child_process';
 import mongoose from 'mongoose';
-import admin from 'firebase-admin';
+import { initializeApp } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 import dotenv from 'dotenv';
 import Course from './models/Course.js';
 import TopicData from './models/TopicData.js';
@@ -18,7 +19,7 @@ const __dirname = path.dirname(__filename);
 const EXPORT_DIR = path.join(__dirname, 'exported_code');
 
 // Initialize Firebase Admin without credentials (only works for token verification)
-admin.initializeApp({
+initializeApp({
   projectId: "createnotes-8fb7c"
 });
 
@@ -51,7 +52,7 @@ const authenticateUser = async (req, res, next) => {
 
   const token = authHeader.split('Bearer ')[1];
   try {
-    const decodedToken = await admin.auth().verifyIdToken(token);
+    const decodedToken = await getAuth().verifyIdToken(token);
     if (decodedToken.email !== 'gopuhardik@gmail.com') {
       return res.status(403).json({ error: 'Forbidden: Invalid email' });
     }
