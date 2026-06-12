@@ -272,6 +272,30 @@ app.post('/api/upload', upload.single('image'), async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Server Error' }); }
 });
 
+app.delete('/api/images', async (req, res) => {
+  const { topicId, imageUrl } = req.body;
+  if (!topicId || !imageUrl) return res.status(400).json({ error: 'Missing topicId or imageUrl' });
+  try {
+    // Remove from DB
+    await TopicData.findOneAndUpdate(
+      { topicId: topicId },
+      { $pull: { images: imageUrl } }
+    );
+    
+    // Remove physical file
+    const filename = path.basename(imageUrl);
+    const filePath = path.join(UPLOADS_DIR, filename);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+    
+    res.json(await getFullDbState());
+  } catch (err) { 
+    console.error('Error deleting image:', err);
+    res.status(500).json({ error: 'Server Error' }); 
+  }
+});
+
 app.post('/api/export', (req, res) => {
   const { topicId, topicTitle, content } = req.body;
   if (!topicTitle || !content) return res.status(400).json({ error: 'Missing title or content' });

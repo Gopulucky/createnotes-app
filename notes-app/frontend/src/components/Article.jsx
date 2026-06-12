@@ -189,15 +189,17 @@ export default function Article({ topic, flatTopics, progressState, notesState, 
   const handleDeleteImage = async (imageUrl) => {
     if (!confirm("Are you sure you want to remove this image?")) return;
     try {
-      const dbRes = await fetch('/api/data');
-      const db = await dbRes.json();
-      db.images[topic.id] = db.images[topic.id].filter(img => img !== imageUrl);
+      const res = await fetch('/api/images', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topicId: topic.id, imageUrl })
+      });
       
-      // We do a hacky POST to a raw endpoint if we had one, but since we don't have a specific DELETE image endpoint, 
-      // we'll just update it indirectly or you can add a delete endpoint. 
-      // For now, I'll just prompt the user that image deletion from disk requires a backend endpoint.
-      alert("Image removed from view. (Note: physical file deletion requires a dedicated backend route)");
-      onDbUpdate(db);
+      if (res.ok) {
+        onDbUpdate(await res.json());
+      } else {
+        alert("Failed to delete image.");
+      }
     } catch (e) { console.error(e); }
   };
 
@@ -364,8 +366,17 @@ export default function Article({ topic, flatTopics, progressState, notesState, 
           {topicImages.length > 0 && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px', marginTop: '16px' }}>
               {topicImages.map((img, i) => (
-                <div key={i} style={{ position: 'relative', width: '100%', display: 'flex' }}>
-                  <img src={img.startsWith('http') ? img : `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}${img}`} alt="Uploaded reference" style={{ width: '100%', maxHeight: '400px', borderRadius: '12px', border: '1px solid var(--color-border-primary)', boxShadow: 'var(--shadow-md)', objectFit: 'contain', backgroundColor: 'var(--color-bg-secondary)' }} />
+                <div key={i} style={{ position: 'relative', width: '100%', minHeight: '120px', backgroundColor: 'var(--color-bg-secondary)', borderRadius: '12px', border: '1px solid var(--color-border-primary)', boxShadow: 'var(--shadow-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                  <img 
+                    src={img.startsWith('http') ? img : `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}${img}`} 
+                    alt="Uploaded reference" 
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="%239ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline><line x1="3" y1="3" x2="21" y2="21"></line></svg>';
+                      e.target.style.objectFit = 'none';
+                    }}
+                    style={{ width: '100%', height: '100%', maxHeight: '400px', objectFit: 'contain' }} 
+                  />
                   <button 
                     className="no-print"
                     onClick={() => handleDeleteImage(img)}
