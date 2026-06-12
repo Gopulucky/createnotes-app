@@ -365,7 +365,7 @@ export default function Article({ topic, flatTopics, progressState, notesState, 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginTop: '16px' }}>
               {topicImages.map((img, i) => (
                 <div key={i} style={{ position: 'relative', width: '100%' }}>
-                  <img src={img} alt="Uploaded reference" style={{ width: '100%', borderRadius: '12px', border: '1px solid var(--color-border-primary)', boxShadow: 'var(--shadow-md)', objectFit: 'contain', backgroundColor: 'var(--color-bg-secondary)' }} />
+                  <img src={img.startsWith('http') ? img : `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}${img}`} alt="Uploaded reference" style={{ width: '100%', borderRadius: '12px', border: '1px solid var(--color-border-primary)', boxShadow: 'var(--shadow-md)', objectFit: 'contain', backgroundColor: 'var(--color-bg-secondary)' }} />
                   <button 
                     className="no-print"
                     onClick={() => handleDeleteImage(img)}
