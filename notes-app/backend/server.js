@@ -27,6 +27,11 @@ if (!fs.existsSync(EXPORT_DIR)) {
   fs.mkdirSync(EXPORT_DIR);
 }
 
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR);
+}
+
 const mongoURI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/notes-app';
 
 mongoose.connect(mongoURI)
