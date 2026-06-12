@@ -368,7 +368,7 @@ export default function Article({ topic, flatTopics, progressState, notesState, 
               {topicImages.map((img, i) => (
                 <div key={i} style={{ position: 'relative', width: '100%', minHeight: '120px', backgroundColor: 'var(--color-bg-secondary)', borderRadius: '12px', border: '1px solid var(--color-border-primary)', boxShadow: 'var(--shadow-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                   <img 
-                    src={img.startsWith('http') ? img : `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}${img}`} 
+                    src={img.startsWith('http') || img.startsWith('data:') ? img : `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}${img}`} 
                     alt="Uploaded reference" 
                     onError={(e) => {
                       e.target.onerror = null;

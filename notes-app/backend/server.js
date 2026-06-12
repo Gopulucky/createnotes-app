@@ -72,15 +72,7 @@ const authenticateUser = async (req, res, next) => {
 // Apply auth middleware to all /api routes
 app.use('/api', authenticateUser);
 
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, path.join(__dirname, 'uploads'));
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
-});
+const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
 const getFullDbState = async () => {
@@ -263,9 +255,10 @@ app.post('/api/upload', upload.single('image'), async (req, res) => {
   const topicId = req.body.topicId;
   if (!req.file || !topicId) return res.status(400).json({ error: 'Image and topicId required' });
   try {
+    const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
     await TopicData.findOneAndUpdate(
       { topicId: topicId },
-      { $push: { images: `/uploads/${req.file.filename}` } },
+      { $push: { images: base64Image } },
       { upsert: true }
     );
     res.json(await getFullDbState());
@@ -282,11 +275,13 @@ app.delete('/api/images', async (req, res) => {
       { $pull: { images: imageUrl } }
     );
     
-    // Remove physical file
-    const filename = path.basename(imageUrl);
-    const filePath = path.join(UPLOADS_DIR, filename);
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+    // Remove physical file if it is an old file stored locally
+    if (!imageUrl.startsWith('data:')) {
+      const filename = path.basename(imageUrl);
+      const filePath = path.join(UPLOADS_DIR, filename);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
     }
     
     res.json(await getFullDbState());
