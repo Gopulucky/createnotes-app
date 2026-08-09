@@ -4,10 +4,17 @@ export default function PomodoroTimer() {
   const [timeLeft, setTimeLeft] = useState(25 * 60); // 25 minutes
   const [isRunning, setIsRunning] = useState(false);
   const [mode, setMode] = useState('focus'); // focus or break
-  
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
   const containerRef = useRef(null);
   const minutesRef = useRef(null);
   const secondsRef = useRef(null);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
   useEffect(() => {
     let interval = null;
@@ -76,7 +83,7 @@ export default function PomodoroTimer() {
         backgroundColor: '#000000', 
         color: '#facc15', 
         padding: '24px 20px', 
-        borderRadius: document.fullscreenElement ? '0px' : '12px', 
+        borderRadius: isFullscreen ? '0px' : '12px',
         position: 'relative', 
         overflow: 'hidden', 
         marginBottom: '32px',

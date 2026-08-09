@@ -75,47 +75,45 @@ app.use('/api', authenticateUser);
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
-const getFullDbState = async () => {
+// Lightweight: course/module/topic structure + progress map only.
+// Deliberately excludes notes/codeNotes/images/keyConcepts/flashcards/expectedOutput/codeMeta —
+// those are fetched per-topic on demand (see getTopicContent) so the app doesn't have to
+// download every topic's base64 images just to render the sidebar.
+const getCourseStructure = async () => {
   try {
     const courses = await Course.find({}).lean();
-    courses.forEach(c => { delete c._id; delete c.__v; }); // clean up for frontend
-    
-    const topicDataList = await TopicData.find({}).lean();
-    
-    const db = {
-      courses,
-      progress: {},
-      notes: {},
-      codeNotes: {},
-      images: {},
-      keyConcepts: {},
-      flashcards: {},
-      expectedOutput: {},
-      codeMeta: {}
-    };
+    courses.forEach(c => { delete c._id; delete c.__v; });
 
-    for (const td of topicDataList) {
-      const tId = td.topicId;
-      if (td.progress) db.progress[tId] = td.progress;
-      if (td.notes) db.notes[tId] = td.notes;
-      if (td.codeNotes) db.codeNotes[tId] = td.codeNotes;
-      if (td.images && td.images.length > 0) db.images[tId] = td.images;
-      if (td.keyConcepts) db.keyConcepts[tId] = td.keyConcepts;
-      if (td.flashcards && td.flashcards.length > 0) db.flashcards[tId] = td.flashcards;
-      if (td.expectedOutput) db.expectedOutput[tId] = td.expectedOutput;
-      if (td.codeMeta && Object.keys(td.codeMeta).length > 0) db.codeMeta[tId] = td.codeMeta;
+    const progressList = await TopicData.find({}, 'topicId progress').lean();
+    const progress = {};
+    for (const td of progressList) {
+      if (td.progress) progress[td.topicId] = td.progress;
     }
 
-    return db;
+    return { courses, progress };
   } catch (err) {
-    console.error('Error fetching DB state:', err);
+    console.error('Error fetching course structure:', err);
     throw err;
   }
 };
 
+const getTopicContent = async (topicId) => {
+  const td = await TopicData.findOne({ topicId }).lean();
+  return {
+    progress: td?.progress || 'not-started',
+    notes: td?.notes || '',
+    codeNotes: td?.codeNotes || '',
+    images: td?.images || [],
+    keyConcepts: td?.keyConcepts || '',
+    flashcards: td?.flashcards || [],
+    expectedOutput: td?.expectedOutput || '',
+    codeMeta: td?.codeMeta || {},
+  };
+};
+
 app.get('/api/data', async (req, res) => {
   try {
-    const db = await getFullDbState();
+    const db = await getCourseStructure();
     res.json(db);
   } catch (err) { res.status(500).json({ error: 'Server Error' }); }
 });
@@ -132,7 +130,7 @@ app.post('/api/courses', async (req, res) => {
       coverImage: null,
       modules: []
     });
-    res.json(await getFullDbState());
+    res.json(await getCourseStructure());
   } catch (err) { res.status(500).json({ error: 'Server Error' }); }
 });
 
@@ -143,14 +141,14 @@ app.put('/api/courses/:id', async (req, res) => {
     if (title) update.title = title;
     if (description) update.description = description;
     await Course.findOneAndUpdate({ id: req.params.id }, update);
-    res.json(await getFullDbState());
+    res.json(await getCourseStructure());
   } catch (err) { res.status(500).json({ error: 'Server Error' }); }
 });
 
 app.delete('/api/courses/:id', async (req, res) => {
   try {
     await Course.findOneAndDelete({ id: req.params.id });
-    res.json(await getFullDbState());
+    res.json(await getCourseStructure());
   } catch (err) { res.status(500).json({ error: 'Server Error' }); }
 });
 
@@ -163,7 +161,7 @@ app.post('/api/modules', async (req, res) => {
       { id: courseId },
       { $push: { modules: { id: `module-${Date.now()}`, title, topics: [] } } }
     );
-    res.json(await getFullDbState());
+    res.json(await getCourseStructure());
   } catch (err) { res.status(500).json({ error: 'Server Error' }); }
 });
 
@@ -174,7 +172,7 @@ app.put('/api/modules/:id', async (req, res) => {
       { "modules.id": req.params.id },
       { $set: { "modules.$.title": title } }
     );
-    res.json(await getFullDbState());
+    res.json(await getCourseStructure());
   } catch (err) { res.status(500).json({ error: 'Server Error' }); }
 });
 
@@ -184,7 +182,7 @@ app.delete('/api/modules/:id', async (req, res) => {
       { "modules.id": req.params.id },
       { $pull: { modules: { id: req.params.id } } }
     );
-    res.json(await getFullDbState());
+    res.json(await getCourseStructure());
   } catch (err) { res.status(500).json({ error: 'Server Error' }); }
 });
 
@@ -196,7 +194,7 @@ app.post('/api/topics', async (req, res) => {
       { "modules.id": moduleId },
       { $push: { "modules.$.topics": { id: `topic-${Date.now()}`, title, difficulty: difficulty || 'easy' } } }
     );
-    res.json(await getFullDbState());
+    res.json(await getCourseStructure());
   } catch (err) { res.status(500).json({ error: 'Server Error' }); }
 });
 
@@ -214,7 +212,7 @@ app.put('/api/topics/:id', async (req, res) => {
       });
       await course.save();
     }
-    res.json(await getFullDbState());
+    res.json(await getCourseStructure());
   } catch (err) { res.status(500).json({ error: 'Server Error' }); }
 });
 
@@ -227,11 +225,12 @@ app.delete('/api/topics/:id', async (req, res) => {
       });
       await course.save();
     }
-    res.json(await getFullDbState());
+    res.json(await getCourseStructure());
   } catch (err) { res.status(500).json({ error: 'Server Error' }); }
 });
 
 /* --- CONTENT --- */
+// Returns just the updated topic's content (not the whole DB / every topic's images).
 const updateTopicData = async (req, res, field, val) => {
   try {
     await TopicData.findOneAndUpdate(
@@ -239,17 +238,34 @@ const updateTopicData = async (req, res, field, val) => {
       { [field]: val },
       { upsert: true, new: true }
     );
-    res.json(await getFullDbState());
+    res.json(await getTopicContent(req.body.topicId));
   } catch (err) { res.status(500).json({ error: 'Server Error' }); }
 };
 
-app.post('/api/progress', (req, res) => updateTopicData(req, res, 'progress', req.body.status));
+// Progress also lives in the lightweight course structure (drives sidebar/dashboard
+// progress bars), so it returns that instead of single-topic content.
+app.post('/api/progress', async (req, res) => {
+  try {
+    await TopicData.findOneAndUpdate(
+      { topicId: req.body.topicId },
+      { progress: req.body.status },
+      { upsert: true }
+    );
+    res.json(await getCourseStructure());
+  } catch (err) { res.status(500).json({ error: 'Server Error' }); }
+});
 app.post('/api/notes', (req, res) => updateTopicData(req, res, 'notes', req.body.content));
 app.post('/api/codeNotes', (req, res) => updateTopicData(req, res, 'codeNotes', req.body.content));
 app.post('/api/keyConcepts', (req, res) => updateTopicData(req, res, 'keyConcepts', req.body.content));
 app.post('/api/flashcards', (req, res) => updateTopicData(req, res, 'flashcards', req.body.flashcards));
 app.post('/api/expectedOutput', (req, res) => updateTopicData(req, res, 'expectedOutput', req.body.content));
 app.post('/api/codeMeta', (req, res) => updateTopicData(req, res, 'codeMeta', req.body.meta));
+
+app.get('/api/topics/:topicId/content', async (req, res) => {
+  try {
+    res.json(await getTopicContent(req.params.topicId));
+  } catch (err) { res.status(500).json({ error: 'Server Error' }); }
+});
 
 app.post('/api/upload', upload.single('image'), async (req, res) => {
   const topicId = req.body.topicId;
@@ -261,7 +277,7 @@ app.post('/api/upload', upload.single('image'), async (req, res) => {
       { $push: { images: base64Image } },
       { upsert: true }
     );
-    res.json(await getFullDbState());
+    res.json(await getTopicContent(topicId));
   } catch (err) { res.status(500).json({ error: 'Server Error' }); }
 });
 
@@ -284,10 +300,10 @@ app.delete('/api/images', async (req, res) => {
       }
     }
     
-    res.json(await getFullDbState());
-  } catch (err) { 
+    res.json(await getTopicContent(topicId));
+  } catch (err) {
     console.error('Error deleting image:', err);
-    res.status(500).json({ error: 'Server Error' }); 
+    res.status(500).json({ error: 'Server Error' });
   }
 });
 

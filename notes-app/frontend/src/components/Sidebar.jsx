@@ -5,7 +5,7 @@ import { slugify } from '../App';
 const EditIcon = () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>);
 const TrashIcon = () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>);
 
-export default function Sidebar({ courseData, activeTopicId, progressState, onDbUpdate, isDarkMode, toggleTheme }) {
+export default function Sidebar({ courseData, activeTopicId, progressState, onDbUpdate, isDarkMode, toggleTheme, mobileOpen, onCloseMobile }) {
   const [expandedModules, setExpandedModules] = useState([]);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const navigate = useNavigate();
@@ -102,7 +102,7 @@ export default function Sidebar({ courseData, activeTopicId, progressState, onDb
 
   if (isCollapsed) {
     return (
-      <aside className="sidebar accordion-sidebar no-print" style={{ width: '64px', minWidth: '64px', padding: '24px 0', alignItems: 'center', transition: 'width 0.2s ease' }}>
+      <aside className={`sidebar accordion-sidebar no-print ${mobileOpen ? 'mobile-open' : ''}`} style={{ width: '64px', minWidth: '64px', padding: '24px 0', alignItems: 'center', transition: 'width 0.2s ease' }}>
         <button 
           onClick={() => setIsCollapsed(false)}
           style={{ background: 'var(--color-bg-tertiary)', border: '1px solid var(--color-border-primary)', color: 'var(--color-text-primary)', cursor: 'pointer', padding: '8px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -119,10 +119,21 @@ export default function Sidebar({ courseData, activeTopicId, progressState, onDb
   }
 
   return (
-    <aside className="sidebar accordion-sidebar no-print" style={{ transition: 'width 0.2s ease' }}>
-      
+    <aside className={`sidebar accordion-sidebar no-print ${mobileOpen ? 'mobile-open' : ''}`} style={{ transition: 'width 0.2s ease' }}>
+
       <div className="course-header" style={{ position: 'relative' }}>
-        <button 
+        <button
+          className="mobile-sidebar-close no-print"
+          onClick={onCloseMobile}
+          aria-label="Close navigation"
+          title="Close navigation"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+        <button
           onClick={toggleTheme}
           style={{ position: 'absolute', top: '24px', right: '56px', background: 'transparent', border: 'none', color: 'var(--color-text-tertiary)', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px' }}
           title="Toggle Dark Mode"
@@ -189,7 +200,10 @@ export default function Sidebar({ courseData, activeTopicId, progressState, onDb
                       <div 
                         key={topic.id} 
                         className={`accordion-item ${activeTopicId === topic.id ? 'active' : ''}`}
-                        onClick={() => navigate(`/course/${slugify(courseData.title)}/topic/${slugify(topic.title)}`)}
+                        onClick={() => {
+                          navigate(`/course/${slugify(courseData.title)}/topic/${slugify(topic.title)}`);
+                          onCloseMobile?.();
+                        }}
                       >
                         <div className="accordion-item-main">
                           {/* Document icon instead of video play button */}

@@ -1,10 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import { slugify } from '../App';
-import Editor from '@monaco-editor/react';
 import PomodoroTimer from './PomodoroTimer';
 import Flashcards from './Flashcards';
+
+// Monaco is a multi-MB dependency — only fetch it when the Code tab is actually opened.
+const Editor = lazy(() => import('@monaco-editor/react'));
+
+const EMPTY_CONTENT = {
+  progress: 'not-started', notes: '', codeNotes: '', images: [],
+  keyConcepts: '', flashcards: [], expectedOutput: '', codeMeta: { filename: 'script.js' },
+};
 
 const EditIcon = () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ marginRight: '6px' }}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>);
 const RevealIcon = () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" style={{ marginRight: '8px' }}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>);
@@ -18,12 +25,15 @@ const TOC_SECTIONS = [
   { id: 'my-notes', label: 'Text Notes' }
 ];
 
-export default function Article({ topic, flatTopics, progressState, notesState, codeNotesState, imagesState, keyConceptsState, flashcardsState, expectedOutputState, codeMetaState, onDbUpdate }) {
+export default function Article({ topic, flatTopics, progressState, onDbUpdate }) {
   const [localNotes, setLocalNotes] = useState('');
   const [localCode, setLocalCode] = useState('');
   const [localKeyConcepts, setLocalKeyConcepts] = useState('');
   const [localExpectedOutput, setLocalExpectedOutput] = useState('');
   const [localCodeMeta, setLocalCodeMeta] = useState({ filename: 'script.js' });
+  const [localImages, setLocalImages] = useState([]);
+  const [localFlashcards, setLocalFlashcards] = useState([]);
+  const [contentLoading, setContentLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   
   // Edit mode toggles
@@ -37,7 +47,7 @@ export default function Article({ topic, flatTopics, progressState, notesState, 
 
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
-  const { courseId } = useParams();
+  const { courseSlug } = useParams();
 
   // ScrollSpy for Table of Contents
   useEffect(() => {
@@ -67,33 +77,48 @@ export default function Article({ topic, flatTopics, progressState, notesState, 
     return () => observer.disconnect();
   }, [topic, activeView]);
 
+  // Fetch this topic's content on demand instead of relying on a global blob that would
+  // otherwise carry every topic's base64 images on every load.
   useEffect(() => {
-    if (topic) {
-      setLocalNotes(notesState[topic.id] || '');
-      setLocalCode(codeNotesState[topic.id] || '');
-      setLocalKeyConcepts(keyConceptsState[topic.id] || '');
-      setLocalExpectedOutput(expectedOutputState ? (expectedOutputState[topic.id] || '') : '');
-      setLocalCodeMeta(codeMetaState ? (codeMetaState[topic.id] || { filename: 'script.js' }) : { filename: 'script.js' });
-      setIsEditingKeyConcepts(false);
-      setIsEditingNotes(false);
-      setIsEditingOutput(false);
-      setIsEditingCodeMeta(false);
-      setIsOutputRevealed(false);
-    }
-  }, [topic, notesState, codeNotesState, keyConceptsState, expectedOutputState, codeMetaState]);
+    if (!topic) return;
+    let cancelled = false;
+    setContentLoading(true);
+    setIsEditingKeyConcepts(false);
+    setIsEditingNotes(false);
+    setIsEditingOutput(false);
+    setIsEditingCodeMeta(false);
+    setIsOutputRevealed(false);
+
+    fetch(`/api/topics/${topic.id}/content`)
+      .then(res => res.ok ? res.json() : EMPTY_CONTENT)
+      .then(data => {
+        if (cancelled) return;
+        setLocalNotes(data.notes || '');
+        setLocalCode(data.codeNotes || '');
+        setLocalKeyConcepts(data.keyConcepts || '');
+        setLocalExpectedOutput(data.expectedOutput || '');
+        setLocalCodeMeta(data.codeMeta && Object.keys(data.codeMeta).length ? data.codeMeta : { filename: 'script.js' });
+        setLocalImages(data.images || []);
+        setLocalFlashcards(data.flashcards || []);
+      })
+      .catch(err => console.error('Failed to load topic content:', err))
+      .finally(() => { if (!cancelled) setContentLoading(false); });
+
+    return () => { cancelled = true; };
+  }, [topic]);
 
   if (!topic) return <main className="main-content-area">Select or create a topic</main>;
 
   const currentIndex = flatTopics.findIndex(t => t.id === topic.id);
   const handlePrev = () => {
     if (currentIndex > 0) {
-      navigate(`/course/${courseId}/topic/${slugify(flatTopics[currentIndex - 1].title)}`);
+      navigate(`/course/${courseSlug}/topic/${slugify(flatTopics[currentIndex - 1].title)}`);
     }
   };
 
   const handleNext = () => {
     if (currentIndex < flatTopics.length - 1) {
-      navigate(`/course/${courseId}/topic/${slugify(flatTopics[currentIndex + 1].title)}`);
+      navigate(`/course/${courseSlug}/topic/${slugify(flatTopics[currentIndex + 1].title)}`);
     }
   };
 
@@ -111,48 +136,44 @@ export default function Article({ topic, flatTopics, progressState, notesState, 
   const handleNotesBlur = async () => {
     setIsEditingNotes(false);
     try {
-      const res = await fetch('/api/notes', {
+      await fetch('/api/notes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ topicId: topic.id, content: localNotes })
       });
-      onDbUpdate(await res.json());
     } catch (err) { console.error(err); }
   };
 
   const handleKeyConceptsBlur = async () => {
     setIsEditingKeyConcepts(false);
     try {
-      const res = await fetch('/api/keyConcepts', {
+      await fetch('/api/keyConcepts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ topicId: topic.id, content: localKeyConcepts })
       });
-      onDbUpdate(await res.json());
     } catch (err) { console.error(err); }
   };
 
   const handleOutputBlur = async () => {
     setIsEditingOutput(false);
     try {
-      const res = await fetch('/api/expectedOutput', {
+      await fetch('/api/expectedOutput', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ topicId: topic.id, content: localExpectedOutput })
       });
-      onDbUpdate(await res.json());
     } catch (err) { console.error(err); }
   };
 
   const handleCodeMetaBlur = async () => {
     setIsEditingCodeMeta(false);
     try {
-      const res = await fetch('/api/codeMeta', {
+      await fetch('/api/codeMeta', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ topicId: topic.id, meta: localCodeMeta })
       });
-      onDbUpdate(await res.json());
     } catch (err) { console.error(err); }
   };
 
@@ -162,12 +183,11 @@ export default function Article({ topic, flatTopics, progressState, notesState, 
 
   const handleCodeBlur = async () => {
     try {
-      const res = await fetch('/api/codeNotes', {
+      await fetch('/api/codeNotes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ topicId: topic.id, content: localCode })
       });
-      onDbUpdate(await res.json());
     } catch (err) { console.error(err); }
   };
 
@@ -181,7 +201,8 @@ export default function Article({ topic, flatTopics, progressState, notesState, 
 
     try {
       const res = await fetch('/api/upload', { method: 'POST', body: formData });
-      onDbUpdate(await res.json());
+      const data = await res.json();
+      setLocalImages(data.images || []);
       if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (err) { console.error('Upload failed', err); }
   };
@@ -194,9 +215,10 @@ export default function Article({ topic, flatTopics, progressState, notesState, 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ topicId: topic.id, imageUrl })
       });
-      
+
       if (res.ok) {
-        onDbUpdate(await res.json());
+        const data = await res.json();
+        setLocalImages(data.images || []);
       } else {
         alert("Failed to delete image.");
       }
@@ -236,30 +258,31 @@ export default function Article({ topic, flatTopics, progressState, notesState, 
   };
 
   const handleFlashcardsSave = async (newCards) => {
+    setLocalFlashcards(newCards);
     try {
-      const res = await fetch('/api/flashcards', {
+      await fetch('/api/flashcards', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ topicId: topic.id, flashcards: newCards })
       });
-      onDbUpdate(await res.json());
     } catch (err) { console.error(err); }
   };
 
   const currentStatus = progressState[topic.id] || 'not-started';
-  const topicImages = imagesState[topic.id] || [];
-  const topicFlashcards = flashcardsState[topic.id] || [];
+  const topicImages = localImages;
+  const topicFlashcards = localFlashcards;
 
   const prevTopic = currentIndex > 0 ? flatTopics[currentIndex - 1] : null;
   const nextTopic = currentIndex < flatTopics.length - 1 ? flatTopics[currentIndex + 1] : null;
 
   return (
     <main className="main-content-area print-area">
-      <div style={{ display: 'flex', gap: '48px', width: '100%', alignItems: 'flex-start' }}>
-        
+      <div className="article-layout">
+
         {/* Main Content Column */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          
+        <div className="article-main-col">
+          {contentLoading && <div className="content-loading-bar" aria-hidden="true" />}
+
         <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <span className={`difficulty-badge ${topic.difficulty}`}>
             {topic.difficulty}
@@ -367,9 +390,11 @@ export default function Article({ topic, flatTopics, progressState, notesState, 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px', marginTop: '16px' }}>
               {topicImages.map((img, i) => (
                 <div key={i} style={{ position: 'relative', width: '100%', minHeight: '120px', backgroundColor: 'var(--color-bg-secondary)', borderRadius: '12px', border: '1px solid var(--color-border-primary)', boxShadow: 'var(--shadow-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                  <img 
-                    src={img.startsWith('http') || img.startsWith('data:') ? img : `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}${img}`} 
-                    alt="Uploaded reference" 
+                  <img
+                    src={img.startsWith('http') || img.startsWith('data:') ? img : `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}${img}`}
+                    alt="Uploaded reference"
+                    loading="lazy"
+                    decoding="async"
                     onError={(e) => {
                       e.target.onerror = null;
                       e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="%239ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline><line x1="3" y1="3" x2="21" y2="21"></line></svg>';
@@ -476,24 +501,26 @@ export default function Article({ topic, flatTopics, progressState, notesState, 
             </div>
 
             <div style={{ padding: '16px 0' }}>
-              <Editor
-                height="350px"
-                theme="vs-dark"
-                path={localCodeMeta.filename}
-                value={localCode}
-                onChange={handleCodeChange}
-                onMount={(editor) => {
-                  editor.onDidBlurEditorText(() => {
-                    handleCodeBlur();
-                  });
-                }}
-                options={{
-                  minimap: { enabled: false },
-                  fontSize: 14,
-                  fontFamily: '"Fira code", "Consolas", monospace',
-                  padding: { top: 16 }
-                }}
-              />
+              <Suspense fallback={<div style={{ height: '350px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8b949e', fontSize: '0.875rem' }}>Loading editor…</div>}>
+                <Editor
+                  height="350px"
+                  theme="vs-dark"
+                  path={localCodeMeta.filename}
+                  value={localCode}
+                  onChange={handleCodeChange}
+                  onMount={(editor) => {
+                    editor.onDidBlurEditorText(() => {
+                      handleCodeBlur();
+                    });
+                  }}
+                  options={{
+                    minimap: { enabled: false },
+                    fontSize: 14,
+                    fontFamily: '"Fira code", "Consolas", monospace',
+                    padding: { top: 16 }
+                  }}
+                />
+              </Suspense>
             </div>
           </div>
           <div className="no-print" style={{ textAlign: 'right' }}>
@@ -581,7 +608,10 @@ export default function Article({ topic, flatTopics, progressState, notesState, 
 
         {activeView === 'flashcards' && (
           <div id="flashcards">
-            <Flashcards flashcards={topicFlashcards} onSave={handleFlashcardsSave} />
+            {/* key={topic.id} forces a remount on topic change so Flashcards' internal
+                cards/currentIndex/score state doesn't go stale when navigating via
+                the Prev/Next buttons while this tab stays mounted. */}
+            <Flashcards key={topic.id} flashcards={topicFlashcards} onSave={handleFlashcardsSave} />
           </div>
         )}
 
@@ -602,8 +632,8 @@ export default function Article({ topic, flatTopics, progressState, notesState, 
         </div>
         </div> {/* CLOSE MAIN CONTENT COLUMN */}
 
-        {/* Right Sidebar - Table of Contents & Pomodoro */}
-        <aside className="no-print" style={{ position: 'sticky', top: '24px', alignSelf: 'flex-start', width: '320px', flexShrink: 0, paddingLeft: '32px', borderLeft: '1px solid var(--color-border-secondary)' }}>
+        {/* Right Sidebar - Table of Contents & Pomodoro (moves below the article on mobile, see .article-aside) */}
+        <aside className="no-print article-aside">
           <div>
             
             {/* Pomodoro Timer Widget */}

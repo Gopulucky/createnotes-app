@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Routes, Route, useParams, useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import Article from './components/Article';
@@ -21,57 +21,78 @@ export const slugify = (text) => {
 function CourseLayout({ db, onDbUpdate, isDarkMode, toggleTheme }) {
   const { courseSlug, topicSlug } = useParams();
   const navigate = useNavigate();
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   const activeCourse = db.courses?.find(c => slugify(c.title) === courseSlug);
-  
+
+  const flatTopics = useMemo(() => {
+    if (!activeCourse?.modules) return [];
+    const arr = [];
+    activeCourse.modules.forEach(m => m.topics.forEach(t => arr.push(t)));
+    return arr;
+  }, [activeCourse]);
+
+  // Hooks must run unconditionally on every render — guard inside the effect body,
+  // not by early-returning before the hook is declared (that crashes React with a
+  // "rendered more hooks than previous render" error once `activeCourse` resolves).
   useEffect(() => {
     if (db.courses && !activeCourse) {
       navigate('/', { replace: true });
     }
   }, [db.courses, activeCourse, navigate]);
 
-  if (!activeCourse) return null;
-
-  const flatTopics = [];
-  if (activeCourse.modules) {
-    activeCourse.modules.forEach(m => {
-      m.topics.forEach(t => flatTopics.push(t));
-    });
-  }
-
   useEffect(() => {
-    if (!topicSlug && flatTopics.length > 0) {
+    if (!activeCourse || flatTopics.length === 0) return;
+    const matchesSlug = topicSlug && flatTopics.some(t => slugify(t.title) === topicSlug);
+    if (!matchesSlug) {
       navigate(`/course/${courseSlug}/topic/${slugify(flatTopics[0].title)}`, { replace: true });
     }
-  }, [topicSlug, flatTopics, courseSlug, navigate]);
+  }, [activeCourse, topicSlug, flatTopics, courseSlug, navigate]);
 
-  const activeTopic = topicSlug 
-    ? flatTopics.find(t => slugify(t.title) === topicSlug) 
+  useEffect(() => {
+    setMobileSidebarOpen(false);
+  }, [topicSlug]);
+
+  if (!activeCourse) return null;
+
+  const activeTopic = topicSlug
+    ? flatTopics.find(t => slugify(t.title) === topicSlug)
     : flatTopics[0];
 
   return (
     <div className="app-layout">
-      <Sidebar 
-        courseData={activeCourse} 
-        activeTopicId={activeTopic?.id} 
+      <button
+        className="mobile-sidebar-toggle no-print"
+        onClick={() => setMobileSidebarOpen(true)}
+        aria-label="Open navigation"
+        title="Open navigation"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+          <line x1="3" y1="12" x2="21" y2="12"></line>
+          <line x1="3" y1="6" x2="21" y2="6"></line>
+          <line x1="3" y1="18" x2="21" y2="18"></line>
+        </svg>
+      </button>
+      <div
+        className={`sidebar-backdrop ${mobileSidebarOpen ? 'visible' : ''}`}
+        onClick={() => setMobileSidebarOpen(false)}
+      />
+      <Sidebar
+        courseData={activeCourse}
+        activeTopicId={activeTopic?.id}
         progressState={db.progress || {}}
         onDbUpdate={onDbUpdate}
         isDarkMode={isDarkMode}
         toggleTheme={toggleTheme}
+        mobileOpen={mobileSidebarOpen}
+        onCloseMobile={() => setMobileSidebarOpen(false)}
       />
-      
+
       {flatTopics.length > 0 && activeTopic ? (
-        <Article 
-          topic={activeTopic} 
+        <Article
+          topic={activeTopic}
           flatTopics={flatTopics}
           progressState={db.progress || {}}
-          notesState={db.notes || {}}
-          codeNotesState={db.codeNotes || {}}
-          imagesState={db.images || {}}
-          keyConceptsState={db.keyConcepts || {}}
-          flashcardsState={db.flashcards || {}}
-          expectedOutputState={db.expectedOutput || {}}
-          codeMetaState={db.codeMeta || {}}
           onDbUpdate={onDbUpdate}
         />
       ) : (
@@ -88,6 +109,7 @@ function CourseLayout({ db, onDbUpdate, isDarkMode, toggleTheme }) {
 
 function MainApp() {
   const { currentUser } = useAuth();
+  const location = useLocation();
   const [db, setDb] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
@@ -153,7 +175,6 @@ function MainApp() {
     setDb(newDb);
   };
 
-  const location = useLocation();
   const isArticlePage = location.pathname.includes('/course/');
 
   return (

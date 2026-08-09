@@ -1,0 +1,27 @@
+# Credentials & secrets
+database-credentials.txt
+*.env
+.env.*
+!.env.example
+
+# Source screenshot dumps (already ingested into the app's database content)
+css notes/
+react/
+
+# Dependency directories
+node_modules/
+
+# Editor & OS files
+.DS_Store
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Logs
+logs
+*.log
+npm-debug.log*
