@@ -95,7 +95,10 @@ export default function ImportPanel({ courses, onImportComplete }) {
   };
 
   return (
-    <main className="main-content-area">
+    // Deliberately NOT .main-content-area — that class is a 100vh internal scroll container
+    // built for the article/sidebar layout, and under the navbar it pushes this form's lower
+    // half (file pickers + submit) out of reach. This page just wants normal document flow.
+    <main className="import-page">
       <div style={{ maxWidth: '640px', margin: '0 auto' }}>
         <h1>Import from Screenshots</h1>
         <p style={{ color: 'var(--color-text-secondary)', marginBottom: '32px' }}>

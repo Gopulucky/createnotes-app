@@ -1247,6 +1247,17 @@ body.dark {
   justify-content: center;
   border-radius: 50%;
 }
+/* Import page: plain document flow (no 100vh internal scroller) so the whole form is reachable */
+.import-page {
+  padding: 48px 24px 96px;
+  background-color: var(--color-bg-primary);
+}
+@media (max-width: 768px) {
+  .import-page {
+    padding: 24px 16px 80px;
+  }
+}
+
 .import-nav-btn {
   display: flex;
   align-items: center;
