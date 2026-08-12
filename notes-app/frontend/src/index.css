@@ -1186,6 +1186,12 @@ body.dark {
 }
 .main-content {
   flex: 1;
+  /* .app-container is height:100vh + overflow:hidden, so without an explicit scroll
+     container here any page taller than the viewport (e.g. the Import form) gets clipped
+     with no way to scroll to it. min-height:0 is required for a flex child to shrink
+     below its content size and actually scroll. */
+  min-height: 0;
+  overflow-y: auto;
 }
 
 /* Navbar */
