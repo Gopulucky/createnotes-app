@@ -6,9 +6,8 @@ import CourseDashboard from './components/CourseDashboard';
 import ImportPanel from './components/ImportPanel';
 import AdminPanel from './components/AdminPanel';
 import Navbar from './components/Navbar';
-import Footer from './components/Footer';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import Login from './components/Login';
+import Home from './components/Home';
 
 export const slugify = (text) => {
   if (!text) return '';
@@ -151,7 +150,7 @@ function MainApp() {
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
   if (!currentUser) {
-    return <Login isDarkMode={isDarkMode} />;
+    return <Home isDarkMode={isDarkMode} toggleTheme={toggleTheme} />;
   }
 
   if (errorMsg) {
@@ -214,7 +213,6 @@ function MainApp() {
           />
         </Routes>
       </main>
-      <Footer />
     </div>
   );
 }
