@@ -67,9 +67,9 @@ export default function CourseDashboard({ courses, progressState, onDbUpdate, is
           // We'll use a placeholder gradient since we don't have coverImage uploads yet
           const gradientIndex = course.id.length % 3;
           const bgGradients = [
-            'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)', // Orange (Sigma 10 style)
-            'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)', // Blue
-            'linear-gradient(135deg, #10b981 0%, #047857 100%)'  // Green
+            'linear-gradient(135deg, #4338ca 0%, #3730a3 100%)', // Indigo (brand)
+            'linear-gradient(135deg, #b45309 0%, #92400e 100%)', // Terracotta/amber
+            'linear-gradient(135deg, #166534 0%, #14532d 100%)'  // Forest green
           ];
 
           return (

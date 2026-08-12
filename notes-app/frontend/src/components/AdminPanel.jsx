@@ -21,7 +21,10 @@ export default function AdminPanel({ isAdmin }) {
         <div style={{ textAlign: 'center', marginTop: '100px', color: 'var(--color-text-tertiary)' }}>
           <h2>Admins only</h2>
           <p>You don't have access to this page.</p>
-          <button onClick={() => navigate('/')} style={{ marginTop: '16px', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer' }}>
+          <button
+            onClick={() => navigate('/')}
+            style={{ marginTop: '16px', padding: '8px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border-primary)', background: 'var(--color-bg-secondary)', color: 'var(--color-text-primary)', cursor: 'pointer', fontSize: 'var(--text-base)' }}
+          >
             Go home
           </button>
         </div>
@@ -81,7 +84,7 @@ export default function AdminPanel({ isAdmin }) {
                   </td>
                   <td style={tdStyle}>
                     <span style={{
-                      padding: '2px 8px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 600,
+                      padding: '2px 8px', borderRadius: 'var(--radius-full)', fontSize: '0.75rem', fontWeight: 600,
                       background: u.role === 'admin' ? 'var(--color-brand)' : 'var(--color-bg-tertiary)',
                       color: u.role === 'admin' ? '#fff' : 'var(--color-text-secondary)',
                     }}>
@@ -96,7 +99,7 @@ export default function AdminPanel({ isAdmin }) {
                       <button
                         onClick={() => handleDelete(u)}
                         disabled={deletingUid === u.uid}
-                        style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #fecaca', color: '#ef4444', background: 'transparent', cursor: 'pointer', fontSize: '0.8rem' }}
+                        style={{ padding: '6px 12px', borderRadius: 'var(--radius-md)', border: '1px solid #fecaca', color: '#ef4444', background: 'transparent', cursor: 'pointer', fontSize: '0.8rem' }}
                       >
                         {deletingUid === u.uid ? 'Deleting…' : 'Delete'}
                       </button>

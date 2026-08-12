@@ -289,7 +289,7 @@ export default function Article({ topic, flatTopics, progressState, onDbUpdate }
           </span>
           <button 
             onClick={() => window.print()}
-            style={{ padding: '6px 12px', background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-primary)', borderRadius: '4px', fontSize: '0.875rem', cursor: 'pointer', color: 'var(--color-text-primary)' }}
+            style={{ padding: '6px 12px', background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-primary)', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem', cursor: 'pointer', color: 'var(--color-text-primary)' }}
           >
             Save as PDF
           </button>
@@ -298,9 +298,9 @@ export default function Article({ topic, flatTopics, progressState, onDbUpdate }
         <h1 id="introduction">{topic.title}</h1>
         
         <div className="no-print" style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
-          <button onClick={() => handleStatusChange('not-started')} style={{ padding: '6px 12px', borderRadius: '4px', fontSize: '0.875rem', background: currentStatus === 'not-started' ? 'var(--color-bg-tertiary)' : 'transparent', border: '1px solid var(--color-border-secondary)' }}>Not Started</button>
-          <button onClick={() => handleStatusChange('in-progress')} style={{ padding: '6px 12px', borderRadius: '4px', fontSize: '0.875rem', background: currentStatus === 'in-progress' ? 'var(--color-easy-bg)' : 'transparent', border: '1px solid var(--color-easy)' }}>In Progress</button>
-          <button onClick={() => handleStatusChange('mastered')} style={{ padding: '6px 12px', borderRadius: '4px', fontSize: '0.875rem', background: currentStatus === 'mastered' ? 'var(--color-success)' : 'transparent', color: currentStatus === 'mastered' ? 'white' : 'inherit', border: `1px solid var(--color-success)` }}>Mastered</button>
+          <button onClick={() => handleStatusChange('not-started')} style={{ padding: '6px 12px', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem', background: currentStatus === 'not-started' ? 'var(--color-bg-tertiary)' : 'transparent', border: '1px solid var(--color-border-secondary)' }}>Not Started</button>
+          <button onClick={() => handleStatusChange('in-progress')} style={{ padding: '6px 12px', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem', background: currentStatus === 'in-progress' ? 'var(--color-easy-bg)' : 'transparent', border: '1px solid var(--color-easy)' }}>In Progress</button>
+          <button onClick={() => handleStatusChange('mastered')} style={{ padding: '6px 12px', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem', background: currentStatus === 'mastered' ? 'var(--color-success)' : 'transparent', color: currentStatus === 'mastered' ? 'white' : 'inherit', border: `1px solid var(--color-success)` }}>Mastered</button>
         </div>
 
         {/* Tab Navigation Bar */}
@@ -355,10 +355,10 @@ export default function Article({ topic, flatTopics, progressState, onDbUpdate }
             <div 
               onClick={() => setIsEditingKeyConcepts(true)}
               style={{ 
-                minHeight: '100px', 
-                padding: '24px', 
-                backgroundColor: 'var(--color-bg-secondary)', 
-                borderRadius: '8px', 
+                minHeight: '100px',
+                padding: '24px',
+                backgroundColor: 'var(--color-bg-secondary)',
+                borderRadius: 'var(--radius-md)',
                 border: '1px solid var(--color-border-primary)',
                 cursor: 'pointer',
                 color: localKeyConcepts ? 'inherit' : 'var(--color-text-tertiary)',
@@ -377,9 +377,9 @@ export default function Article({ topic, flatTopics, progressState, onDbUpdate }
             <h2>Reference Images & Diagrams</h2>
             <div className="no-print">
               <input type="file" accept="image/*" style={{ display: 'none' }} ref={fileInputRef} onChange={handleImageUpload} />
-              <button 
+              <button
                 onClick={() => fileInputRef.current?.click()}
-                style={{ padding: '8px 16px', background: 'var(--color-text-primary)', color: 'white', borderRadius: '4px', fontSize: '0.875rem' }}
+                style={{ padding: '8px 16px', background: 'var(--color-brand)', color: 'white', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem' }}
               >
                 + Upload Image
               </button>
@@ -389,7 +389,7 @@ export default function Article({ topic, flatTopics, progressState, onDbUpdate }
           {topicImages.length > 0 && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px', marginTop: '16px' }}>
               {topicImages.map((img, i) => (
-                <div key={i} style={{ position: 'relative', width: '100%', minHeight: '120px', backgroundColor: 'var(--color-bg-secondary)', borderRadius: '12px', border: '1px solid var(--color-border-primary)', boxShadow: 'var(--shadow-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                <div key={i} style={{ position: 'relative', width: '100%', minHeight: '120px', backgroundColor: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border-primary)', boxShadow: 'var(--shadow-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                   <img
                     src={img.startsWith('http') || img.startsWith('data:') ? img : `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}${img}`}
                     alt="Uploaded reference"
@@ -442,11 +442,11 @@ export default function Article({ topic, flatTopics, progressState, onDbUpdate }
           ) : (
             <div 
               onClick={() => setIsEditingNotes(true)}
-              style={{ 
-                minHeight: '100px', 
-                padding: '24px', 
-                backgroundColor: 'var(--color-bg-secondary)', 
-                borderRadius: '8px', 
+              style={{
+                minHeight: '100px',
+                padding: '24px',
+                backgroundColor: 'var(--color-bg-secondary)',
+                borderRadius: 'var(--radius-md)',
                 border: '1px solid var(--color-border-primary)',
                 cursor: 'pointer',
                 color: localNotes ? 'inherit' : 'var(--color-text-tertiary)',
@@ -465,7 +465,7 @@ export default function Article({ topic, flatTopics, progressState, onDbUpdate }
           <>
             <div id="code-editor">
               <h2>Code Implementations</h2>
-          <div className="code-editor-wrapper" style={{ border: '1px solid var(--color-border-primary)', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#1e1e1e', marginBottom: '16px' }}>
+          <div className="code-editor-wrapper" style={{ border: '1px solid var(--color-border-primary)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', backgroundColor: '#1e1e1e', marginBottom: '16px' }}>
             
             {/* ChatGPT-Style Code Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#2d333b', padding: '8px 16px', borderBottom: '1px solid #111' }}>
@@ -527,16 +527,16 @@ export default function Article({ topic, flatTopics, progressState, onDbUpdate }
             <button 
               onClick={handleExportCode}
               disabled={exporting || !localCode.trim()}
-              style={{ padding: '8px 16px', background: '#3b82f6', color: 'white', borderRadius: '4px', fontSize: '0.875rem', opacity: (!localCode.trim() || exporting) ? 0.5 : 1 }}
+              style={{ padding: '8px 16px', background: 'var(--color-brand)', color: 'white', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem', opacity: (!localCode.trim() || exporting) ? 0.5 : 1 }}
             >
               {exporting ? 'Exporting...' : 'Export Code to Git'}
             </button>
           </div>
 
           {/* Expected Output Puzzle UI */}
-          <div style={{ marginTop: '24px', background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-primary)', borderRadius: '8px', overflow: 'hidden' }}>
+          <div style={{ marginTop: '24px', background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-primary)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
             <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--color-border-primary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontSize: '0.875rem', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--color-text-secondary)', margin: 0 }}>Expected Output</h3>
+              <h3 style={{ fontFamily: 'var(--font-family-sans)', fontSize: '0.875rem', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--color-text-secondary)', margin: 0 }}>Expected Output</h3>
               {!isEditingOutput && (
                 <button 
                   className="no-print"
@@ -580,7 +580,7 @@ export default function Article({ topic, flatTopics, progressState, onDbUpdate }
                     <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <button 
                         onClick={() => setIsOutputRevealed(true)}
-                        style={{ display: 'flex', alignItems: 'center', background: 'var(--color-brand)', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', transition: 'transform 0.2s ease' }}
+                        style={{ display: 'flex', alignItems: 'center', background: 'var(--color-brand)', color: 'white', border: 'none', padding: '10px 20px', borderRadius: 'var(--radius-md)', fontWeight: 600, cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', transition: 'transform 0.2s ease' }}
                         onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
                         onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
                       >
@@ -643,7 +643,7 @@ export default function Article({ topic, flatTopics, progressState, onDbUpdate }
             {activeView === 'article' && (
               <div style={{ marginTop: '32px', display: 'flex', justifyContent: 'center' }}>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <h3 style={{ fontSize: '0.875rem', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--color-text-tertiary)', marginBottom: '16px' }}>On this page</h3>
+                  <h3 style={{ fontFamily: 'var(--font-family-sans)', fontSize: '0.875rem', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--color-text-tertiary)', marginBottom: '16px', marginTop: 0 }}>On this page</h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     {TOC_SECTIONS.map(sec => (
                       <a 

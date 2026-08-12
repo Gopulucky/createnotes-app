@@ -80,10 +80,10 @@ export default function PomodoroTimer() {
       ref={containerRef}
       className="no-print" 
       style={{ 
-        backgroundColor: '#000000', 
-        color: '#facc15', 
-        padding: '24px 20px', 
-        borderRadius: isFullscreen ? '0px' : '12px',
+        backgroundColor: '#1c1917',
+        color: '#f59e0b',
+        padding: '24px 20px',
+        borderRadius: isFullscreen ? '0px' : 'var(--radius-lg)',
         position: 'relative', 
         overflow: 'hidden', 
         marginBottom: '32px',
@@ -101,14 +101,14 @@ export default function PomodoroTimer() {
           style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: isRunning ? 'default' : 'ns-resize', userSelect: 'none' }}
           title={isRunning ? "" : "Scroll up or down to change"}
         >
-          <span style={{ fontSize: '4.5rem', fontWeight: 700, color: '#fef3c7', lineHeight: 1, letterSpacing: '-1px' }}>
+          <span style={{ fontSize: '4.5rem', fontWeight: 700, color: '#fde8bc', lineHeight: 1, letterSpacing: '-1px' }}>
             {minutes}
           </span>
-          <span style={{ fontSize: '0.75rem', color: '#fef3c7', marginTop: '4px', fontWeight: 400, opacity: 0.8 }}>Min</span>
+          <span style={{ fontSize: '0.75rem', color: '#fde8bc', marginTop: '4px', fontWeight: 400, opacity: 0.8 }}>Min</span>
         </div>
         
         {/* Colon */}
-        <span style={{ fontSize: '3.5rem', fontWeight: 700, color: '#fef3c7', lineHeight: 1, paddingBottom: '1rem', opacity: 0.8 }}>
+        <span style={{ fontSize: '3.5rem', fontWeight: 700, color: '#fde8bc', lineHeight: 1, paddingBottom: '1rem', opacity: 0.8 }}>
           :
         </span>
         
@@ -118,10 +118,10 @@ export default function PomodoroTimer() {
           style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: isRunning ? 'default' : 'ns-resize', userSelect: 'none' }}
           title={isRunning ? "" : "Scroll up or down to change"}
         >
-          <span style={{ fontSize: '4.5rem', fontWeight: 700, color: '#fef3c7', lineHeight: 1, letterSpacing: '-1px' }}>
+          <span style={{ fontSize: '4.5rem', fontWeight: 700, color: '#fde8bc', lineHeight: 1, letterSpacing: '-1px' }}>
             {seconds}
           </span>
-          <span style={{ fontSize: '0.75rem', color: '#fef3c7', marginTop: '4px', fontWeight: 400, opacity: 0.8 }}>Sec</span>
+          <span style={{ fontSize: '0.75rem', color: '#fde8bc', marginTop: '4px', fontWeight: 400, opacity: 0.8 }}>Sec</span>
         </div>
       </div>
 
@@ -129,17 +129,17 @@ export default function PomodoroTimer() {
       <div style={{ display: 'flex', justifyContent: 'center', gap: '12px' }}>
         <button 
           onClick={toggleTimer} 
-          style={{ 
-            backgroundColor: '#facc15', color: '#000', borderRadius: '24px', 
+          style={{
+            backgroundColor: '#f59e0b', color: '#1c1917', borderRadius: 'var(--radius-full)',
             padding: '8px 24px', fontWeight: 'bold', fontSize: '0.875rem', cursor: 'pointer', border: 'none', flex: 1
           }}
         >
           {isRunning ? 'Pause' : 'Start'}
         </button>
-        <button 
-          onClick={resetTimer} 
-          style={{ 
-            backgroundColor: 'transparent', color: '#facc15', border: '1px solid #facc15', borderRadius: '24px', 
+        <button
+          onClick={resetTimer}
+          style={{
+            backgroundColor: 'transparent', color: '#f59e0b', border: '1px solid #f59e0b', borderRadius: 'var(--radius-full)',
             padding: '8px 24px', fontWeight: 'bold', fontSize: '0.875rem', cursor: 'pointer', flex: 1
           }}
         >

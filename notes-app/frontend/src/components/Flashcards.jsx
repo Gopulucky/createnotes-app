@@ -91,8 +91,8 @@ export default function Flashcards({ flashcards, onSave }) {
             position: 'relative',
             width: '100%',
             maxWidth: '600px',
-            background: 'linear-gradient(to right, rgba(230,230,255,0.1), rgba(220,255,230,0.1))',
-            borderRadius: '24px',
+            background: 'linear-gradient(to right, rgba(67,56,202,0.08), rgba(245,158,11,0.08))',
+            borderRadius: 'var(--radius-xl)',
             padding: '24px 0'
           }}>
             {/* The 3D Card */}
@@ -107,7 +107,7 @@ export default function Flashcards({ flashcards, onSave }) {
                 {/* Front (Dark) */}
                 <div style={{
                   width: '100%', height: '100%', position: 'absolute', backfaceVisibility: 'hidden',
-                  background: '#2d2d2d', color: '#f8fafc', borderRadius: '24px',
+                  background: '#221f1b', color: '#faf9f7', borderRadius: 'var(--radius-xl)',
                   padding: '32px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
                   boxShadow: '0 10px 25px -5px rgba(0,0,0,0.3)'
                 }}>
@@ -121,7 +121,7 @@ export default function Flashcards({ flashcards, onSave }) {
                   >
                     <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
                   </button>
-                  <h3 style={{ fontSize: '1.75rem', fontWeight: 400, lineHeight: 1.4, margin: 0, maxWidth: '90%' }}>
+                  <h3 style={{ fontFamily: 'var(--font-family-display)', fontSize: '1.75rem', fontWeight: 500, lineHeight: 1.4, margin: 0, maxWidth: '90%' }}>
                     {currentCard.front}
                   </h3>
                   <div style={{ position: 'absolute', bottom: '24px', color: '#94a3b8', fontSize: '0.875rem' }}>
@@ -132,17 +132,17 @@ export default function Flashcards({ flashcards, onSave }) {
                 {/* Back (Light) */}
                 <div style={{
                   width: '100%', height: '100%', position: 'absolute', backfaceVisibility: 'hidden',
-                  background: '#ffffff', color: '#0f172a', borderRadius: '24px',
+                  background: '#fdfcfa', color: '#1c1917', borderRadius: 'var(--radius-xl)',
                   padding: '32px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
                   transform: 'rotateY(180deg)', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)'
                 }}>
-                  <div style={{ position: 'absolute', top: '24px', left: '24px', color: '#64748b', fontSize: '0.875rem' }}>
+                  <div style={{ position: 'absolute', top: '24px', left: '24px', color: '#79746d', fontSize: '0.875rem' }}>
                     {currentIndex + 1} / {cards.length}
                   </div>
-                  <h3 style={{ fontSize: '1.5rem', fontWeight: 400, lineHeight: 1.5, margin: 0, maxWidth: '90%' }}>
+                  <h3 style={{ fontFamily: 'var(--font-family-display)', fontSize: '1.5rem', fontWeight: 500, lineHeight: 1.5, margin: 0, maxWidth: '90%' }}>
                     {currentCard.back}
                   </h3>
-                  <div style={{ position: 'absolute', bottom: '24px', display: 'flex', alignItems: 'center', gap: '8px', color: '#0f172a', border: '1px solid #e2e8f0', padding: '6px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 600 }}>
+                  <div style={{ position: 'absolute', bottom: '24px', display: 'flex', alignItems: 'center', gap: '8px', color: '#1c1917', border: '1px solid #e7e1d5', padding: '6px 12px', borderRadius: 'var(--radius-full)', fontSize: '0.75rem', fontWeight: 600 }}>
                     <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
                     Explain
                   </div>
@@ -191,13 +191,13 @@ export default function Flashcards({ flashcards, onSave }) {
           </div>
         </div>
       ) : (
-        <div style={{ padding: '40px', textAlign: 'center', background: 'var(--color-bg-secondary)', borderRadius: '12px', marginBottom: '24px', border: '1px dashed var(--color-border-secondary)' }}>
+        <div style={{ padding: '40px', textAlign: 'center', background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-lg)', marginBottom: '24px', border: '1px dashed var(--color-border-secondary)' }}>
           <p style={{ color: 'var(--color-text-secondary)', marginBottom: '0' }}>You have no flashcards for this topic yet. Create one below to start studying!</p>
         </div>
       )}
 
       {/* Creation UI */}
-      <div style={{ background: 'var(--color-bg-secondary)', padding: '24px', borderRadius: '12px', border: '1px solid var(--color-border-primary)' }}>
+      <div style={{ background: 'var(--color-bg-secondary)', padding: '24px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border-primary)' }}>
         <h3 style={{ fontSize: '1rem', marginBottom: '16px', color: 'var(--color-text-primary)' }}>Create New Flashcard</h3>
         <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: '200px' }}>
@@ -206,7 +206,7 @@ export default function Flashcards({ flashcards, onSave }) {
               type="text" 
               value={newFront} 
               onChange={e => setNewFront(e.target.value)} 
-              style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', border: '1px solid var(--color-border-primary)', background: 'var(--color-bg-primary)', color: 'var(--color-text-primary)', outline: 'none' }}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border-primary)', background: 'var(--color-bg-primary)', color: 'var(--color-text-primary)', outline: 'none' }}
               placeholder="What is..."
             />
           </div>
@@ -216,7 +216,7 @@ export default function Flashcards({ flashcards, onSave }) {
               type="text" 
               value={newBack} 
               onChange={e => setNewBack(e.target.value)} 
-              style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', border: '1px solid var(--color-border-primary)', background: 'var(--color-bg-primary)', color: 'var(--color-text-primary)', outline: 'none' }}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border-primary)', background: 'var(--color-bg-primary)', color: 'var(--color-text-primary)', outline: 'none' }}
               placeholder="It is..."
               onKeyDown={e => { if (e.key === 'Enter') handleAdd(); }}
             />
@@ -225,7 +225,7 @@ export default function Flashcards({ flashcards, onSave }) {
         <button 
           onClick={handleAdd}
           disabled={!newFront.trim() || !newBack.trim()}
-          style={{ marginTop: '16px', padding: '10px 20px', background: 'var(--color-brand)', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 500, cursor: (!newFront.trim() || !newBack.trim()) ? 'not-allowed' : 'pointer', opacity: (!newFront.trim() || !newBack.trim()) ? 0.5 : 1, transition: 'all 0.2s' }}
+          style={{ marginTop: '16px', padding: '10px 20px', background: 'var(--color-brand)', color: '#fff', border: 'none', borderRadius: 'var(--radius-md)', fontWeight: 500, cursor: (!newFront.trim() || !newBack.trim()) ? 'not-allowed' : 'pointer', opacity: (!newFront.trim() || !newBack.trim()) ? 0.5 : 1, transition: 'all 0.2s' }}
         >
           + Add Flashcard
         </button>

@@ -180,7 +180,7 @@ export default function ImportPanel({ courses, onImportComplete }) {
         </div>
 
         {(log.length > 0 || error || done) && (
-          <div style={{ marginTop: '28px', background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-primary)', borderRadius: '8px', padding: '16px' }}>
+          <div style={{ marginTop: '28px', background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-primary)', borderRadius: 'var(--radius-md)', padding: '16px' }}>
             {log.map((l, i) => <div key={i} style={{ fontSize: '0.85rem', fontFamily: 'monospace', marginBottom: '4px' }}>{l}</div>)}
             {error && <div style={{ color: '#ef4444', fontWeight: 600, marginTop: '8px' }}>Error: {error}</div>}
             {done && (
@@ -206,17 +206,17 @@ export default function ImportPanel({ courses, onImportComplete }) {
 }
 
 const inputStyle = {
-  width: '100%', padding: '10px 12px', borderRadius: '6px',
+  width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-md)',
   border: '1px solid var(--color-border-primary)', background: 'var(--color-bg-primary)',
-  color: 'var(--color-text-primary)', outline: 'none', fontSize: '0.95rem',
+  color: 'var(--color-text-primary)', outline: 'none', fontSize: 'var(--text-lg)',
 };
 
 const primaryBtnStyle = {
   padding: '12px 20px', background: 'var(--color-brand)', color: '#fff',
-  border: 'none', borderRadius: '6px', fontWeight: 600, fontSize: '0.95rem',
+  border: 'none', borderRadius: 'var(--radius-md)', fontWeight: 600, fontSize: 'var(--text-lg)',
 };
 
 const secondaryBtnStyle = {
   padding: '8px 16px', background: 'var(--color-bg-secondary)', color: 'var(--color-text-primary)',
-  border: '1px solid var(--color-border-primary)', borderRadius: '6px', cursor: 'pointer', fontSize: '0.875rem',
+  border: '1px solid var(--color-border-primary)', borderRadius: 'var(--radius-md)', cursor: 'pointer', fontSize: 'var(--text-base)',
 };
