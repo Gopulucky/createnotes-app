@@ -1,5 +1,7 @@
 # Credentials & secrets
 database-credentials.txt
+monogdb atlas.txt
+mongodb atlas.txt
 *.env
 .env.*
 !.env.example

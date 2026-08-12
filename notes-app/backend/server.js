@@ -307,6 +307,238 @@ app.delete('/api/images', async (req, res) => {
   }
 });
 
+/* --- AI IMPORT (screenshots -> module/topics via a user-supplied Gemini key) ---
+   The API key arrives in the request body, is held only in a local variable for the
+   life of this one request, and is never written to disk, .env, or the database. */
+const importUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024, files: 300 } });
+
+const IMPORT_RESPONSE_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    topics: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          module: { type: 'STRING' },
+          title: { type: 'STRING' },
+          images: { type: 'ARRAY', items: { type: 'STRING' } },
+          notes: { type: 'STRING' },
+          keyConcepts: { type: 'STRING' },
+          codeNotes: { type: 'STRING' },
+          flashcards: {
+            type: 'ARRAY',
+            items: {
+              type: 'OBJECT',
+              properties: { front: { type: 'STRING' }, back: { type: 'STRING' } },
+              required: ['front', 'back'],
+            },
+          },
+        },
+        required: ['module', 'title', 'images', 'notes', 'keyConcepts', 'flashcards'],
+      },
+    },
+  },
+  required: ['topics'],
+};
+
+// The notes these produce are for revisiting cold months later, so the prompt asks for
+// recall-oriented structure (why/when, gotchas, worked example) rather than slide summaries.
+function buildImportPrompt(batchFilenames, { fixedModule, knownModules } = {}) {
+  const manifest = batchFilenames.map((f, i) => `Image ${i + 1} = "${f}"`).join('\n');
+
+  const moduleInstruction = fixedModule
+    ? `Set "module" to exactly "${fixedModule}" for every topic.`
+    : `Set "module" to the broader concept/chapter this topic belongs to — the unit a textbook or syllabus would use (e.g. "Sorting", "Linked Lists", "Backtracking", "Dynamic Programming", "Flexbox", "React Hooks"). Several topics normally share one module: e.g. topics "Bubble Sort", "Merge Sort" and "Quick Sort" all belong to module "Sorting". Keep module names short (1-3 words) and reuse the SAME spelling for the same concept every time.${
+        knownModules?.length
+          ? `\nModules already identified in earlier batches — reuse these names verbatim when a topic belongs to one of them, and only invent a new name for a genuinely new concept:\n${knownModules.map(m => `- ${m}`).join('\n')}`
+          : ''
+      }`;
+
+  return `These are lecture-slide screenshots from a course video, in chronological order. File manifest:
+${manifest}
+
+Split the images into topics using each slide's visible heading. Slides with no heading (editor screenshots, terminal output, browser windows) belong to whichever topic the surrounding slides belong to — this is one continuous lecture, so use the flow to decide.
+
+${moduleInstruction}
+
+You are writing revision notes for someone who understood this once and will return to it months later having forgotten the details. They should be able to rebuild their understanding from your notes WITHOUT rewatching the video or squinting at the screenshots. Never write "as shown in the slide" or "the instructor explains" — the notes must stand alone.
+
+For each topic produce:
+
+- "images": exact filenames from the manifest above belonging to this topic, in order.
+
+- "notes": 250-450 words of markdown. Structure it as:
+  a short plain-language definition of what this is and **why it exists / what problem it solves**;
+  then how it actually works, in your own words, building from simple to complete;
+  then when to use it versus the alternatives;
+  then the gotchas — the mistakes people actually make, edge cases, and anything counter-intuitive.
+  Use **bold** for terms worth remembering, \`code spans\` for syntax/keywords, and short lists.
+  Explain the *reasoning*, not just the mechanics — the "why it behaves this way" is what makes it
+  come back quickly on reread. Where the slides show a concrete walkthrough (a trace, an example
+  input/output, a diagram), reconstruct it in words so the idea survives without the picture.
+  If it's an algorithm/data structure, always state its time and space complexity and why.
+
+- "keyConcepts": 5-9 markdown bullets ("- " list). Each must be a complete, self-contained fact
+  that carries real information — a rule, a tradeoff, a complexity, a syntax pattern, a gotcha.
+  These are the skim-in-30-seconds layer before an exam or interview. Write "Merge sort is stable
+  and always O(n log n), but needs O(n) extra space" — not "Merge sort has good complexity".
+
+- "codeNotes": ONE clean, correct, runnable code example that demonstrates the topic end to end,
+  synthesized from what the slides show. Include brief inline comments on the non-obvious lines
+  (the ones a beginner would misread). Empty string if the topic genuinely involves no code.
+
+- "flashcards": 5-7 {front, back} pairs for active recall. Mix the types: definitions ("What is X?"),
+  application ("Which sort would you use when memory is tight and why?"), tracing ("What does this
+  code output?"), and comparison ("Difference between X and Y?"). The "front" must be answerable
+  from memory and unambiguous; the "back" must be a complete answer with the reason, not one word.
+  Prefer questions that test understanding over questions that test vocabulary.
+
+Return topics in the order they first appear.`;
+}
+
+async function callGeminiForImport(apiKey, model, batchFiles, promptOpts) {
+  const parts = [{ text: buildImportPrompt(batchFiles.map(f => f.basename), promptOpts) }];
+  for (const f of batchFiles) {
+    parts.push({ inlineData: { mimeType: f.mimetype, data: f.buffer.toString('base64') } });
+  }
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const body = {
+    contents: [{ role: 'user', parts }],
+    generationConfig: { responseMimeType: 'application/json', responseSchema: IMPORT_RESPONSE_SCHEMA },
+  };
+
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+
+    if (res.status === 429 || res.status >= 500) {
+      await new Promise(r => setTimeout(r, attempt * 8000));
+      continue;
+    }
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Gemini API error ${res.status}: ${errText.slice(0, 300)}`);
+    }
+    const data = await res.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) throw new Error('Unexpected Gemini response shape');
+    return JSON.parse(text);
+  }
+  throw new Error('Gemini API kept failing (rate limit or server error) after 4 attempts.');
+}
+
+app.post('/api/import/generate', importUpload.array('images', 300), async (req, res) => {
+  const apiKey = req.body.apiKey; // request-scoped only — never persisted
+  const moduleName = (req.body.moduleName || '').trim(); // blank => let the AI detect modules
+  const courseId = req.body.courseId;
+  const model = req.body.model || 'gemini-2.5-flash';
+  const files = req.files || [];
+
+  if (!apiKey || !courseId || files.length === 0) {
+    return res.status(400).json({ error: 'apiKey, courseId, and at least one image are required' });
+  }
+
+  res.setHeader('Content-Type', 'application/x-ndjson');
+  const send = (obj) => res.write(JSON.stringify(obj) + '\n');
+
+  try {
+    const course = await Course.findOne({ id: courseId });
+    if (!course) {
+      send({ type: 'error', message: `Course ${courseId} not found` });
+      return res.end();
+    }
+
+    const namedFiles = files.map(f => ({ ...f, basename: path.basename(f.originalname) }));
+    const fileByName = new Map(namedFiles.map(f => [f.basename, f]));
+
+    const BATCH_SIZE = 25;
+    const allTopics = [];
+    const knownModules = []; // fed back into later batches so the same concept keeps one name
+    const totalBatches = Math.ceil(namedFiles.length / BATCH_SIZE);
+    send({ type: 'start', totalImages: namedFiles.length, totalBatches });
+
+    for (let i = 0; i < namedFiles.length; i += BATCH_SIZE) {
+      const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+      const batch = namedFiles.slice(i, i + BATCH_SIZE);
+      send({ type: 'progress', message: `Batch ${batchNum}/${totalBatches}: analyzing ${batch.length} images...` });
+
+      const result = await callGeminiForImport(apiKey, model, batch, {
+        fixedModule: moduleName || null,
+        knownModules,
+      });
+      const batchTopics = result.topics || [];
+      allTopics.push(...batchTopics);
+
+      for (const t of batchTopics) {
+        const m = (t.module || '').trim();
+        if (m && !knownModules.includes(m)) knownModules.push(m);
+      }
+
+      const foundModules = [...new Set(batchTopics.map(t => (t.module || '').trim()).filter(Boolean))];
+      send({
+        type: 'progress',
+        message: `Batch ${batchNum}/${totalBatches}: ${batchTopics.length} topics` +
+          (moduleName ? '' : ` across ${foundModules.length} module(s): ${foundModules.join(', ')}`),
+      });
+
+      if (i + BATCH_SIZE < namedFiles.length) await new Promise(r => setTimeout(r, 3000));
+    }
+
+    send({ type: 'progress', message: `Saving ${allTopics.length} topics to the database...` });
+
+    const now = Date.now();
+    const toMd = (val) => Array.isArray(val) ? val.map(l => (l.trim().startsWith('-') ? l : `- ${l}`)).join('\n') : String(val || '');
+
+    // Group topics into modules, preserving first-seen order for both modules and their topics.
+    const moduleMap = new Map();
+    for (let i = 0; i < allTopics.length; i++) {
+      const t = allTopics[i];
+      if (!t.title) continue;
+
+      const modTitle = moduleName || (t.module || '').trim() || 'Untitled Module';
+      const topicId = `topic-${now + i}`;
+
+      const images = (t.images || [])
+        .map(name => fileByName.get(path.basename(name)))
+        .filter(Boolean)
+        .map(f => `data:${f.mimetype};base64,${f.buffer.toString('base64')}`);
+
+      const flashcards = (t.flashcards || []).map((fc, j) => ({ id: now + i * 100 + j, front: fc.front, back: fc.back }));
+
+      await TopicData.findOneAndUpdate(
+        { topicId },
+        { topicId, images, notes: toMd(t.notes), keyConcepts: toMd(t.keyConcepts), codeNotes: toMd(t.codeNotes), flashcards },
+        { upsert: true }
+      );
+
+      if (!moduleMap.has(modTitle)) moduleMap.set(modTitle, []);
+      moduleMap.get(modTitle).push({ id: topicId, title: t.title, difficulty: 'easy' });
+    }
+
+    const newModules = [...moduleMap.entries()].map(([title, topics], idx) => ({
+      id: `module-${now + idx}`,
+      title,
+      topics,
+    }));
+
+    await Course.findOneAndUpdate({ id: courseId }, { $push: { modules: { $each: newModules } } });
+
+    const topicCount = newModules.reduce((n, m) => n + m.topics.length, 0);
+    send({
+      type: 'done',
+      topicCount,
+      moduleCount: newModules.length,
+      modules: newModules.map(m => ({ title: m.title, topicCount: m.topics.length })),
+    });
+    res.end();
+  } catch (err) {
+    console.error('Import failed:', err.message);
+    send({ type: 'error', message: err.message });
+    res.end();
+  }
+});
+
 app.post('/api/export', (req, res) => {
   const { topicId, topicTitle, content } = req.body;
   if (!topicTitle || !content) return res.status(400).json({ error: 'Missing title or content' });

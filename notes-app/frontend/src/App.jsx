@@ -3,6 +3,7 @@ import { Routes, Route, useParams, useNavigate, useLocation } from 'react-router
 import Sidebar from './components/Sidebar';
 import Article from './components/Article';
 import CourseDashboard from './components/CourseDashboard';
+import ImportPanel from './components/ImportPanel';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -198,9 +199,13 @@ function MainApp() {
             path="/course/:courseSlug" 
             element={<CourseLayout db={db} onDbUpdate={handleDbUpdate} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />} 
           />
-          <Route 
-            path="/course/:courseSlug/topic/:topicSlug" 
-            element={<CourseLayout db={db} onDbUpdate={handleDbUpdate} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />} 
+          <Route
+            path="/course/:courseSlug/topic/:topicSlug"
+            element={<CourseLayout db={db} onDbUpdate={handleDbUpdate} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />}
+          />
+          <Route
+            path="/import"
+            element={<ImportPanel courses={db.courses || []} onImportComplete={fetchDb} />}
           />
         </Routes>
       </main>

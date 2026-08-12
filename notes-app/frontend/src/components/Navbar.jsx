@@ -28,12 +28,18 @@ export default function Navbar({ isDarkMode, toggleTheme }) {
 
       <div className="navbar-actions">
         {currentUser && (
-          <div className="user-info">
-            <img src={currentUser.photoURL || 'https://via.placeholder.com/32'} alt="User Avatar" className="user-avatar" />
-            <span className="user-name">{currentUser.displayName || currentUser.email}</span>
-          </div>
+          <>
+            <Link to="/import" className="import-nav-btn" title="Import from screenshots">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+              Import
+            </Link>
+            <div className="user-info">
+              <img src={currentUser.photoURL || 'https://via.placeholder.com/32'} alt="User Avatar" className="user-avatar" />
+              <span className="user-name">{currentUser.displayName || currentUser.email}</span>
+            </div>
+          </>
         )}
-        
+
         <button className="auth-btn" onClick={handleAuthAction}>
           {currentUser ? 'Logout' : 'Login with Google'}
         </button>
