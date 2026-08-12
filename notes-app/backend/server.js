@@ -397,6 +397,43 @@ For each topic produce:
 Return topics in the order they first appear.`;
 }
 
+// Model names get retired (a hardcoded one already 404'd with "no longer available to new
+// users"), so ask the key which models it can actually use and score them, instead of
+// betting on a name staying valid.
+async function resolveGeminiModel(apiKey, requested) {
+  if (requested && requested !== 'auto') return requested;
+
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=200`);
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Could not list Gemini models (${res.status}): ${errText.slice(0, 200)}`);
+  }
+  const { models = [] } = await res.json();
+
+  const EXCLUDE = /embedding|aqa|tts|imagen|veo|image-generation|native-audio|live-|robotics/i;
+  const candidates = models
+    .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
+    .filter(m => !EXCLUDE.test(m.name || ''));
+
+  if (candidates.length === 0) throw new Error('No Gemini models available to this API key support generateContent.');
+
+  const score = (m) => {
+    const id = (m.name || '').replace(/^models\//, '');
+    let s = 0;
+    if (/flash/i.test(id)) s += 100;        // fast + generous free tier, good for vision batches
+    else if (/pro/i.test(id)) s += 60;
+    if (/-latest$/i.test(id)) s += 40;      // alias that keeps working as versions roll
+    const ver = parseFloat((id.match(/gemini-(\d+(?:\.\d+)?)/i) || [])[1] || '0');
+    s += ver * 10;
+    if (/lite/i.test(id)) s -= 25;          // cheaper but weaker at long structured output
+    if (/preview|exp/i.test(id)) s -= 8;    // prefer stable when equally ranked
+    return s;
+  };
+
+  const best = candidates.sort((a, b) => score(b) - score(a))[0];
+  return (best.name || '').replace(/^models\//, '');
+}
+
 async function callGeminiForImport(apiKey, model, batchFiles, promptOpts) {
   const parts = [{ text: buildImportPrompt(batchFiles.map(f => f.basename), promptOpts) }];
   for (const f of batchFiles) {
@@ -432,7 +469,7 @@ app.post('/api/import/generate', importUpload.array('images', 300), async (req, 
   const apiKey = req.body.apiKey; // request-scoped only — never persisted
   const moduleName = (req.body.moduleName || '').trim(); // blank => let the AI detect modules
   const courseId = req.body.courseId;
-  const model = req.body.model || 'gemini-2.5-flash';
+  const requestedModel = req.body.model || 'auto';
   const files = req.files || [];
 
   if (!apiKey || !courseId || files.length === 0) {
@@ -457,6 +494,9 @@ app.post('/api/import/generate', importUpload.array('images', 300), async (req, 
     const knownModules = []; // fed back into later batches so the same concept keeps one name
     const totalBatches = Math.ceil(namedFiles.length / BATCH_SIZE);
     send({ type: 'start', totalImages: namedFiles.length, totalBatches });
+
+    const model = await resolveGeminiModel(apiKey, requestedModel);
+    send({ type: 'progress', message: `Using model: ${model}` });
 
     for (let i = 0; i < namedFiles.length; i += BATCH_SIZE) {
       const batchNum = Math.floor(i / BATCH_SIZE) + 1;

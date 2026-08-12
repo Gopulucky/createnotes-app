@@ -22,7 +22,9 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
-const MODEL = 'gemini-2.5-flash'; // if this 404s, check https://ai.google.dev/gemini-api/docs/models for the current free-tier flash model name
+// 'auto' asks the API which models this key can use and picks the best (model names get
+// retired, so hardcoding one eventually 404s). Override with GEMINI_MODEL in .env if needed.
+const MODEL = process.env.GEMINI_MODEL || 'auto';
 const BATCH_SIZE = 25; // images per API call — keeps requests small and free-tier-friendly
 const BATCH_DELAY_MS = 4000; // gentle pacing between calls to stay under per-minute rate limits
 
@@ -146,6 +148,37 @@ For each topic produce:
 Return topics in the order they first appear.`;
 }
 
+async function resolveModel(requested) {
+  if (requested && requested !== 'auto') return requested;
+
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${API_KEY}&pageSize=200`);
+  if (!res.ok) throw new Error(`Could not list Gemini models (${res.status}): ${(await res.text()).slice(0, 200)}`);
+  const { models = [] } = await res.json();
+
+  const EXCLUDE = /embedding|aqa|tts|imagen|veo|image-generation|native-audio|live-|robotics/i;
+  const candidates = models
+    .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
+    .filter(m => !EXCLUDE.test(m.name || ''));
+  if (candidates.length === 0) throw new Error('No models available to this API key support generateContent.');
+
+  const score = (m) => {
+    const id = (m.name || '').replace(/^models\//, '');
+    let s = 0;
+    if (/flash/i.test(id)) s += 100;
+    else if (/pro/i.test(id)) s += 60;
+    if (/-latest$/i.test(id)) s += 40;
+    s += parseFloat((id.match(/gemini-(\d+(?:\.\d+)?)/i) || [])[1] || '0') * 10;
+    if (/lite/i.test(id)) s -= 25;
+    if (/preview|exp/i.test(id)) s -= 8;
+    return s;
+  };
+
+  return (candidates.sort((a, b) => score(b) - score(a))[0].name || '').replace(/^models\//, '');
+}
+
+const resolvedModel = await resolveModel(MODEL);
+console.log(`Using model: ${resolvedModel}`);
+
 async function callGemini(batchFiles, promptOpts) {
   const parts = [{ text: buildPrompt(batchFiles, promptOpts) }];
   for (const f of batchFiles) {
@@ -153,7 +186,7 @@ async function callGemini(batchFiles, promptOpts) {
     parts.push({ inlineData: { mimeType: mimeFor(f), data } });
   }
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${resolvedModel}:generateContent?key=${API_KEY}`;
   const body = {
     contents: [{ role: 'user', parts }],
     generationConfig: {
