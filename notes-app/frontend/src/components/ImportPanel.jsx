@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 export default function ImportPanel({ courses, onImportComplete }) {
@@ -6,6 +6,7 @@ export default function ImportPanel({ courses, onImportComplete }) {
   const [moduleName, setModuleName] = useState('');
   const [courseId, setCourseId] = useState(courses?.[0]?.id || '');
   const [files, setFiles] = useState([]);
+  const [pickWarning, setPickWarning] = useState('');
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState([]);
   const [done, setDone] = useState(null);
@@ -15,11 +16,31 @@ export default function ImportPanel({ courses, onImportComplete }) {
   const filesInputRef = useRef(null);
   const navigate = useNavigate();
 
+  // webkitdirectory/directory as plain JSX attributes (webkitdirectory="") are unreliable in
+  // React — they can silently fail to reach the DOM. Setting them as DOM properties via a ref
+  // is the version that actually works across React versions.
+  useEffect(() => {
+    if (folderInputRef.current) {
+      folderInputRef.current.webkitdirectory = true;
+      folderInputRef.current.directory = true;
+    }
+  }, []);
+
   const imageFiles = (fileList) =>
     Array.from(fileList).filter(f => /\.(png|jpe?g|webp)$/i.test(f.name));
 
-  const handlePickFolder = (e) => setFiles(imageFiles(e.target.files));
-  const handlePickFiles = (e) => setFiles(imageFiles(e.target.files));
+  const handlePick = (e) => {
+    const picked = imageFiles(e.target.files);
+    setFiles(picked);
+    setPickWarning(
+      e.target.files.length === 0
+        ? ''
+        : picked.length === 0
+        ? `Selected ${e.target.files.length} file(s), but none were .png/.jpg/.webp images.`
+        : ''
+    );
+    e.target.value = ''; // allow re-selecting the same folder/files later without it being a no-op
+  };
 
   const canSubmit = apiKey.trim() && courseId && files.length > 0 && !running;
 
@@ -133,16 +154,20 @@ export default function ImportPanel({ courses, onImportComplete }) {
               Screenshots
             </label>
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              <input ref={folderInputRef} type="file" webkitdirectory="" directory="" multiple onChange={handlePickFolder} style={{ display: 'none' }} />
-              <input ref={filesInputRef} type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={handlePickFiles} style={{ display: 'none' }} />
-              <button onClick={() => folderInputRef.current?.click()} style={secondaryBtnStyle}>Select folder</button>
-              <button onClick={() => filesInputRef.current?.click()} style={secondaryBtnStyle}>Select files</button>
+              <input ref={folderInputRef} type="file" multiple onChange={handlePick} style={{ display: 'none' }} />
+              <input ref={filesInputRef} type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={handlePick} style={{ display: 'none' }} />
+              <button type="button" onClick={() => folderInputRef.current?.click()} style={secondaryBtnStyle}>Select folder</button>
+              <button type="button" onClick={() => filesInputRef.current?.click()} style={secondaryBtnStyle}>Select files</button>
             </div>
-            {files.length > 0 && (
-              <p style={{ fontSize: '0.85rem', marginTop: '8px' }}>{files.length} images selected</p>
+            <p style={{ fontSize: '0.85rem', marginTop: '8px', color: files.length > 0 ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)' }}>
+              {files.length > 0 ? `${files.length} images selected` : 'No screenshots selected yet'}
+            </p>
+            {pickWarning && (
+              <p style={{ fontSize: '0.8rem', color: '#ef4444', marginTop: '4px' }}>{pickWarning}</p>
             )}
             <p style={{ fontSize: '0.78rem', color: 'var(--color-text-tertiary)', marginTop: '6px' }}>
-              "Select folder" needs a Chromium-based browser (Chrome, Edge). Use "Select files" on Firefox/Safari.
+              "Select folder" needs a Chromium-based browser (Chrome, Edge). Use "Select files" on Firefox/Safari
+              — you can select every screenshot at once with Ctrl/Cmd+A inside the picker.
             </p>
           </div>
 
