@@ -11,6 +11,7 @@ import { getAuth } from 'firebase-admin/auth';
 import dotenv from 'dotenv';
 import Course from './models/Course.js';
 import TopicData from './models/TopicData.js';
+import User from './models/User.js';
 
 dotenv.config();
 
@@ -48,7 +49,29 @@ app.get('/', (req, res) => {
   res.send('✅ CreateNotes Backend is successfully running!');
 });
 
-// Authentication Middleware
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'gopuhardik@gmail.com';
+
+// One-time lazy migration: content created before multi-tenancy has no ownerId. The first
+// time the admin authenticates, claim those orphans for them. Idempotent, and only runs
+// when orphans actually exist, so it costs one cheap existence check per process.
+let backfillChecked = false;
+async function backfillLegacyOwnership(adminUid) {
+  if (backfillChecked) return;
+  backfillChecked = true;
+  try {
+    const orphan = await Course.exists({ ownerId: { $exists: false } });
+    if (!orphan) return;
+    const c = await Course.updateMany({ ownerId: { $exists: false } }, { $set: { ownerId: adminUid } });
+    const t = await TopicData.updateMany({ ownerId: { $exists: false } }, { $set: { ownerId: adminUid } });
+    console.log(`Backfilled ownership -> admin: ${c.modifiedCount} courses, ${t.modifiedCount} topic docs`);
+  } catch (err) {
+    backfillChecked = false; // allow a retry on the next admin request
+    console.error('Ownership backfill failed:', err.message);
+  }
+}
+
+// Authentication Middleware — any valid Google account may sign in. Authorisation is
+// per-resource (ownerId), not per-email; the admin email only unlocks admin-only routes.
 const authenticateUser = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -58,16 +81,46 @@ const authenticateUser = async (req, res, next) => {
   const token = authHeader.split('Bearer ')[1];
   try {
     const decodedToken = await getAuth().verifyIdToken(token);
-    if (decodedToken.email !== 'gopuhardik@gmail.com') {
-      return res.status(403).json({ error: 'Forbidden: Invalid email' });
-    }
+    const isAdmin = decodedToken.email === ADMIN_EMAIL;
+
     req.user = decodedToken;
+    req.uid = decodedToken.uid;
+    req.isAdmin = isAdmin;
+
+    // Keep a lightweight user record so the admin has something to administrate.
+    User.findOneAndUpdate(
+      { uid: decodedToken.uid },
+      {
+        $set: {
+          email: decodedToken.email || '',
+          displayName: decodedToken.name || '',
+          photoURL: decodedToken.picture || '',
+          role: isAdmin ? 'admin' : 'user',
+          lastSeenAt: new Date(),
+        },
+        $setOnInsert: { createdAt: new Date() },
+      },
+      { upsert: true }
+    ).catch(err => console.error('User upsert failed:', err.message));
+
+    // Awaited so the admin's very first request after this deploy can't race ahead of the
+    // migration and briefly render as "0 courses" before a refresh fixes it.
+    if (isAdmin) await backfillLegacyOwnership(decodedToken.uid);
+
     next();
   } catch (error) {
     console.error('Token verification failed:', error);
     return res.status(401).json({ error: `Token verification failed: ${error.message}` });
   }
 };
+
+const requireAdmin = (req, res, next) => {
+  if (!req.isAdmin) return res.status(403).json({ error: 'Forbidden: admin only' });
+  next();
+};
+
+// Course is the authority on who owns a topic; TopicData.ownerId is only a denormalised copy.
+const userOwnsTopic = (uid, topicId) => Course.exists({ ownerId: uid, 'modules.topics.id': topicId });
 
 // Apply auth middleware to all /api routes
 app.use('/api', authenticateUser);
@@ -79,12 +132,14 @@ const upload = multer({ storage: storage });
 // Deliberately excludes notes/codeNotes/images/keyConcepts/flashcards/expectedOutput/codeMeta —
 // those are fetched per-topic on demand (see getTopicContent) so the app doesn't have to
 // download every topic's base64 images just to render the sidebar.
-const getCourseStructure = async () => {
+const getCourseStructure = async (ownerId) => {
   try {
-    const courses = await Course.find({}).lean();
-    courses.forEach(c => { delete c._id; delete c.__v; });
+    const courses = await Course.find({ ownerId }).lean();
+    courses.forEach(c => { delete c._id; delete c.__v; delete c.ownerId; });
 
-    const progressList = await TopicData.find({}, 'topicId progress').lean();
+    // Scope progress to this user's own topics only.
+    const topicIds = courses.flatMap(c => (c.modules || []).flatMap(m => (m.topics || []).map(t => t.id)));
+    const progressList = await TopicData.find({ topicId: { $in: topicIds } }, 'topicId progress').lean();
     const progress = {};
     for (const td of progressList) {
       if (td.progress) progress[td.topicId] = td.progress;
@@ -113,8 +168,8 @@ const getTopicContent = async (topicId) => {
 
 app.get('/api/data', async (req, res) => {
   try {
-    const db = await getCourseStructure();
-    res.json(db);
+    const db = await getCourseStructure(req.uid);
+    res.json({ ...db, isAdmin: req.isAdmin });
   } catch (err) { res.status(500).json({ error: 'Server Error' }); }
 });
 
@@ -125,12 +180,13 @@ app.post('/api/courses', async (req, res) => {
   try {
     await Course.create({
       id: `course-${Date.now()}`,
+      ownerId: req.uid,
       title,
       description: description || '',
       coverImage: null,
       modules: []
     });
-    res.json(await getCourseStructure());
+    res.json(await getCourseStructure(req.uid));
   } catch (err) { res.status(500).json({ error: 'Server Error' }); }
 });
 
@@ -140,15 +196,20 @@ app.put('/api/courses/:id', async (req, res) => {
     const update = {};
     if (title) update.title = title;
     if (description) update.description = description;
-    await Course.findOneAndUpdate({ id: req.params.id }, update);
-    res.json(await getCourseStructure());
+    const done = await Course.findOneAndUpdate({ id: req.params.id, ownerId: req.uid }, update);
+    if (!done) return res.status(404).json({ error: 'Course not found' });
+    res.json(await getCourseStructure(req.uid));
   } catch (err) { res.status(500).json({ error: 'Server Error' }); }
 });
 
 app.delete('/api/courses/:id', async (req, res) => {
   try {
-    await Course.findOneAndDelete({ id: req.params.id });
-    res.json(await getCourseStructure());
+    const course = await Course.findOneAndDelete({ id: req.params.id, ownerId: req.uid });
+    if (!course) return res.status(404).json({ error: 'Course not found' });
+    // Don't leave the course's topic content orphaned in the database.
+    const topicIds = (course.modules || []).flatMap(m => (m.topics || []).map(t => t.id));
+    if (topicIds.length) await TopicData.deleteMany({ topicId: { $in: topicIds } });
+    res.json(await getCourseStructure(req.uid));
   } catch (err) { res.status(500).json({ error: 'Server Error' }); }
 });
 
@@ -157,32 +218,40 @@ app.post('/api/modules', async (req, res) => {
   const { courseId, title } = req.body;
   if (!title || !courseId) return res.status(400).json({ error: 'Title and courseId required' });
   try {
-    await Course.findOneAndUpdate(
-      { id: courseId },
+    const done = await Course.findOneAndUpdate(
+      { id: courseId, ownerId: req.uid },
       { $push: { modules: { id: `module-${Date.now()}`, title, topics: [] } } }
     );
-    res.json(await getCourseStructure());
+    if (!done) return res.status(404).json({ error: 'Course not found' });
+    res.json(await getCourseStructure(req.uid));
   } catch (err) { res.status(500).json({ error: 'Server Error' }); }
 });
 
 app.put('/api/modules/:id', async (req, res) => {
   const { title } = req.body;
   try {
-    await Course.findOneAndUpdate(
-      { "modules.id": req.params.id },
+    const done = await Course.findOneAndUpdate(
+      { "modules.id": req.params.id, ownerId: req.uid },
       { $set: { "modules.$.title": title } }
     );
-    res.json(await getCourseStructure());
+    if (!done) return res.status(404).json({ error: 'Module not found' });
+    res.json(await getCourseStructure(req.uid));
   } catch (err) { res.status(500).json({ error: 'Server Error' }); }
 });
 
 app.delete('/api/modules/:id', async (req, res) => {
   try {
+    const course = await Course.findOne({ "modules.id": req.params.id, ownerId: req.uid });
+    if (!course) return res.status(404).json({ error: 'Module not found' });
+    const mod = course.modules.find(m => m.id === req.params.id);
+    const topicIds = (mod?.topics || []).map(t => t.id);
+
     await Course.findOneAndUpdate(
-      { "modules.id": req.params.id },
+      { "modules.id": req.params.id, ownerId: req.uid },
       { $pull: { modules: { id: req.params.id } } }
     );
-    res.json(await getCourseStructure());
+    if (topicIds.length) await TopicData.deleteMany({ topicId: { $in: topicIds } });
+    res.json(await getCourseStructure(req.uid));
   } catch (err) { res.status(500).json({ error: 'Server Error' }); }
 });
 
@@ -190,42 +259,42 @@ app.delete('/api/modules/:id', async (req, res) => {
 app.post('/api/topics', async (req, res) => {
   const { moduleId, title, difficulty } = req.body;
   try {
-    await Course.findOneAndUpdate(
-      { "modules.id": moduleId },
+    const done = await Course.findOneAndUpdate(
+      { "modules.id": moduleId, ownerId: req.uid },
       { $push: { "modules.$.topics": { id: `topic-${Date.now()}`, title, difficulty: difficulty || 'easy' } } }
     );
-    res.json(await getCourseStructure());
+    if (!done) return res.status(404).json({ error: 'Module not found' });
+    res.json(await getCourseStructure(req.uid));
   } catch (err) { res.status(500).json({ error: 'Server Error' }); }
 });
 
 app.put('/api/topics/:id', async (req, res) => {
   const { title, difficulty } = req.body;
   try {
-    const course = await Course.findOne({ "modules.topics.id": req.params.id });
-    if (course) {
-      course.modules.forEach(m => {
-        const t = m.topics.find(top => top.id === req.params.id);
-        if (t) {
-          if (title) t.title = title;
-          if (difficulty) t.difficulty = difficulty;
-        }
-      });
-      await course.save();
-    }
-    res.json(await getCourseStructure());
+    const course = await Course.findOne({ "modules.topics.id": req.params.id, ownerId: req.uid });
+    if (!course) return res.status(404).json({ error: 'Topic not found' });
+    course.modules.forEach(m => {
+      const t = m.topics.find(top => top.id === req.params.id);
+      if (t) {
+        if (title) t.title = title;
+        if (difficulty) t.difficulty = difficulty;
+      }
+    });
+    await course.save();
+    res.json(await getCourseStructure(req.uid));
   } catch (err) { res.status(500).json({ error: 'Server Error' }); }
 });
 
 app.delete('/api/topics/:id', async (req, res) => {
   try {
-    const course = await Course.findOne({ "modules.topics.id": req.params.id });
-    if (course) {
-      course.modules.forEach(m => {
-        m.topics = m.topics.filter(t => t.id !== req.params.id);
-      });
-      await course.save();
-    }
-    res.json(await getCourseStructure());
+    const course = await Course.findOne({ "modules.topics.id": req.params.id, ownerId: req.uid });
+    if (!course) return res.status(404).json({ error: 'Topic not found' });
+    course.modules.forEach(m => {
+      m.topics = m.topics.filter(t => t.id !== req.params.id);
+    });
+    await course.save();
+    await TopicData.deleteOne({ topicId: req.params.id });
+    res.json(await getCourseStructure(req.uid));
   } catch (err) { res.status(500).json({ error: 'Server Error' }); }
 });
 
@@ -233,9 +302,12 @@ app.delete('/api/topics/:id', async (req, res) => {
 // Returns just the updated topic's content (not the whole DB / every topic's images).
 const updateTopicData = async (req, res, field, val) => {
   try {
+    if (!await userOwnsTopic(req.uid, req.body.topicId)) {
+      return res.status(404).json({ error: 'Topic not found' });
+    }
     await TopicData.findOneAndUpdate(
       { topicId: req.body.topicId },
-      { [field]: val },
+      { [field]: val, ownerId: req.uid },
       { upsert: true, new: true }
     );
     res.json(await getTopicContent(req.body.topicId));
@@ -246,12 +318,15 @@ const updateTopicData = async (req, res, field, val) => {
 // progress bars), so it returns that instead of single-topic content.
 app.post('/api/progress', async (req, res) => {
   try {
+    if (!await userOwnsTopic(req.uid, req.body.topicId)) {
+      return res.status(404).json({ error: 'Topic not found' });
+    }
     await TopicData.findOneAndUpdate(
       { topicId: req.body.topicId },
-      { progress: req.body.status },
+      { progress: req.body.status, ownerId: req.uid },
       { upsert: true }
     );
-    res.json(await getCourseStructure());
+    res.json(await getCourseStructure(req.uid));
   } catch (err) { res.status(500).json({ error: 'Server Error' }); }
 });
 app.post('/api/notes', (req, res) => updateTopicData(req, res, 'notes', req.body.content));
@@ -263,6 +338,9 @@ app.post('/api/codeMeta', (req, res) => updateTopicData(req, res, 'codeMeta', re
 
 app.get('/api/topics/:topicId/content', async (req, res) => {
   try {
+    if (!await userOwnsTopic(req.uid, req.params.topicId)) {
+      return res.status(404).json({ error: 'Topic not found' });
+    }
     res.json(await getTopicContent(req.params.topicId));
   } catch (err) { res.status(500).json({ error: 'Server Error' }); }
 });
@@ -271,10 +349,13 @@ app.post('/api/upload', upload.single('image'), async (req, res) => {
   const topicId = req.body.topicId;
   if (!req.file || !topicId) return res.status(400).json({ error: 'Image and topicId required' });
   try {
+    if (!await userOwnsTopic(req.uid, topicId)) {
+      return res.status(404).json({ error: 'Topic not found' });
+    }
     const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
     await TopicData.findOneAndUpdate(
       { topicId: topicId },
-      { $push: { images: base64Image } },
+      { $push: { images: base64Image }, $set: { ownerId: req.uid } },
       { upsert: true }
     );
     res.json(await getTopicContent(topicId));
@@ -285,6 +366,9 @@ app.delete('/api/images', async (req, res) => {
   const { topicId, imageUrl } = req.body;
   if (!topicId || !imageUrl) return res.status(400).json({ error: 'Missing topicId or imageUrl' });
   try {
+    if (!await userOwnsTopic(req.uid, topicId)) {
+      return res.status(404).json({ error: 'Topic not found' });
+    }
     // Remove from DB
     await TopicData.findOneAndUpdate(
       { topicId: topicId },
@@ -480,7 +564,7 @@ app.post('/api/import/generate', importUpload.array('images', 300), async (req, 
   const send = (obj) => res.write(JSON.stringify(obj) + '\n');
 
   try {
-    const course = await Course.findOne({ id: courseId });
+    const course = await Course.findOne({ id: courseId, ownerId: req.uid });
     if (!course) {
       send({ type: 'error', message: `Course ${courseId} not found` });
       return res.end();
@@ -548,7 +632,7 @@ app.post('/api/import/generate', importUpload.array('images', 300), async (req, 
 
       await TopicData.findOneAndUpdate(
         { topicId },
-        { topicId, images, notes: toMd(t.notes), keyConcepts: toMd(t.keyConcepts), codeNotes: toMd(t.codeNotes), flashcards },
+        { topicId, ownerId: req.uid, images, notes: toMd(t.notes), keyConcepts: toMd(t.keyConcepts), codeNotes: toMd(t.codeNotes), flashcards },
         { upsert: true }
       );
 
@@ -562,7 +646,7 @@ app.post('/api/import/generate', importUpload.array('images', 300), async (req, 
       topics,
     }));
 
-    await Course.findOneAndUpdate({ id: courseId }, { $push: { modules: { $each: newModules } } });
+    await Course.findOneAndUpdate({ id: courseId, ownerId: req.uid }, { $push: { modules: { $each: newModules } } });
 
     const topicCount = newModules.reduce((n, m) => n + m.topics.length, 0);
     send({
@@ -579,7 +663,10 @@ app.post('/api/import/generate', importUpload.array('images', 300), async (req, 
   }
 });
 
-app.post('/api/export', (req, res) => {
+// Writes to the shared server's local filesystem and shells out to git — not something that
+// makes sense per-user on shared hosting, so it stays admin-only rather than trying to isolate
+// per-tenant export directories.
+app.post('/api/export', requireAdmin, (req, res) => {
   const { topicId, topicTitle, content } = req.body;
   if (!topicTitle || !content) return res.status(400).json({ error: 'Missing title or content' });
   const folderName = topicTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase();
@@ -592,6 +679,41 @@ app.post('/api/export', (req, res) => {
       res.json({ success: true, path: targetDir });
     });
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
+});
+
+/* --- ADMIN --- */
+app.get('/api/admin/users', requireAdmin, async (req, res) => {
+  try {
+    const users = await User.find({}).sort({ lastSeenAt: -1 }).lean();
+    const courseCounts = await Course.aggregate([{ $group: { _id: '$ownerId', count: { $sum: 1 } } }]);
+    const countByOwner = Object.fromEntries(courseCounts.map(c => [c._id, c.count]));
+    res.json(users.map(u => ({
+      uid: u.uid,
+      email: u.email,
+      displayName: u.displayName,
+      photoURL: u.photoURL,
+      role: u.role,
+      createdAt: u.createdAt,
+      lastSeenAt: u.lastSeenAt,
+      courseCount: countByOwner[u.uid] || 0,
+    })));
+  } catch (err) { res.status(500).json({ error: 'Server Error' }); }
+});
+
+// Deletes a user's account record and every course/topic they own. Does not (and cannot)
+// delete their Firebase auth account — that requires the Firebase Admin SDK service account
+// credentials this deployment doesn't have configured; they'd just be signed out and, since
+// User.findOneAndUpdate on next login re-upserts them, effectively reset to a fresh account.
+app.delete('/api/admin/users/:uid', requireAdmin, async (req, res) => {
+  if (req.params.uid === req.uid) return res.status(400).json({ error: "Can't delete your own admin account" });
+  try {
+    const courses = await Course.find({ ownerId: req.params.uid }).lean();
+    const topicIds = courses.flatMap(c => (c.modules || []).flatMap(m => (m.topics || []).map(t => t.id)));
+    if (topicIds.length) await TopicData.deleteMany({ topicId: { $in: topicIds } });
+    await Course.deleteMany({ ownerId: req.params.uid });
+    await User.deleteOne({ uid: req.params.uid });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Server Error' }); }
 });
 
 const PORT = process.env.PORT || 3001;

@@ -8,8 +8,9 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
-const ALLOWED_EMAIL = 'gopuhardik@gmail.com';
-
+// Any Google account may sign in — authorization (what a user can see/edit) is enforced
+// per-resource on the backend via ownerId, not by an email allowlist here. The one
+// remaining special email (see backend ADMIN_EMAIL) just unlocks the admin panel.
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -19,11 +20,7 @@ export function AuthProvider({ children }) {
   const loginWithGoogle = async () => {
     try {
       setError('');
-      const result = await signInWithPopup(auth, googleProvider);
-      if (result.user.email !== ALLOWED_EMAIL) {
-        await signOut(auth);
-        setError(`Unauthorized email: ${result.user.email}`);
-      }
+      await signInWithPopup(auth, googleProvider);
     } catch (err) {
       setError(err.message);
     }
@@ -36,15 +33,9 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async user => {
       if (user) {
-        if (user.email === ALLOWED_EMAIL) {
-          setCurrentUser(user);
-          const t = await user.getIdToken();
-          setToken(t);
-        } else {
-          await signOut(auth);
-          setCurrentUser(null);
-          setToken(null);
-        }
+        setCurrentUser(user);
+        const t = await user.getIdToken();
+        setToken(t);
       } else {
         setCurrentUser(null);
         setToken(null);

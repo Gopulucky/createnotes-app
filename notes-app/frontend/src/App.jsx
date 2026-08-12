@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar';
 import Article from './components/Article';
 import CourseDashboard from './components/CourseDashboard';
 import ImportPanel from './components/ImportPanel';
+import AdminPanel from './components/AdminPanel';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -180,24 +181,24 @@ function MainApp() {
 
   return (
     <div className="app-container">
-      {!isArticlePage && <Navbar isDarkMode={isDarkMode} toggleTheme={toggleTheme} />}
+      {!isArticlePage && <Navbar isDarkMode={isDarkMode} toggleTheme={toggleTheme} isAdmin={!!db.isAdmin} />}
       <main className="main-content">
         <Routes>
-          <Route 
-            path="/" 
+          <Route
+            path="/"
             element={
-              <CourseDashboard 
-                courses={db.courses || []} 
+              <CourseDashboard
+                courses={db.courses || []}
                 progressState={db.progress || {}}
                 onDbUpdate={handleDbUpdate}
                 isDarkMode={isDarkMode}
                 toggleTheme={toggleTheme}
               />
-            } 
+            }
           />
-          <Route 
-            path="/course/:courseSlug" 
-            element={<CourseLayout db={db} onDbUpdate={handleDbUpdate} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />} 
+          <Route
+            path="/course/:courseSlug"
+            element={<CourseLayout db={db} onDbUpdate={handleDbUpdate} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />}
           />
           <Route
             path="/course/:courseSlug/topic/:topicSlug"
@@ -206,6 +207,10 @@ function MainApp() {
           <Route
             path="/import"
             element={<ImportPanel courses={db.courses || []} onImportComplete={fetchDb} />}
+          />
+          <Route
+            path="/admin"
+            element={<AdminPanel isAdmin={!!db.isAdmin} />}
           />
         </Routes>
       </main>

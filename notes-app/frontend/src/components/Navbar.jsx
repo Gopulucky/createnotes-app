@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
-export default function Navbar({ isDarkMode, toggleTheme }) {
+export default function Navbar({ isDarkMode, toggleTheme, isAdmin }) {
   const { currentUser, loginWithGoogle, logout } = useAuth();
 
   const handleAuthAction = async () => {
@@ -33,6 +33,12 @@ export default function Navbar({ isDarkMode, toggleTheme }) {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
               Import
             </Link>
+            {isAdmin && (
+              <Link to="/admin" className="import-nav-btn" title="Platform users">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                Users
+              </Link>
+            )}
             <div className="user-info">
               <img src={currentUser.photoURL || 'https://via.placeholder.com/32'} alt="User Avatar" className="user-avatar" />
               <span className="user-name">{currentUser.displayName || currentUser.email}</span>
