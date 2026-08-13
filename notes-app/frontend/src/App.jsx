@@ -190,8 +190,6 @@ function MainApp() {
                 courses={db.courses || []}
                 progressState={db.progress || {}}
                 onDbUpdate={handleDbUpdate}
-                isDarkMode={isDarkMode}
-                toggleTheme={toggleTheme}
               />
             }
           />
