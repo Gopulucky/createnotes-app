@@ -47,15 +47,26 @@ function wordCount(text) {
 
 // One collapsible step in the guided flow. Exactly one step is open at a time — clicking
 // a header (open or not) makes it the active one; there's no "all collapsed" state.
-function StepSection({ stepKey, num, title, complete, isOpen, onOpen, children }) {
+function StepSection({ stepKey, title, complete, isOpen, onOpen, children }) {
   return (
     <div className={`step-section ${isOpen ? 'open' : ''}`}>
-      <button type="button" className="step-section-header" onClick={() => onOpen(stepKey)}>
+      <button
+        type="button"
+        className="step-section-header"
+        onClick={() => onOpen(stepKey)}
+        aria-expanded={isOpen}
+      >
         <span className={`step-section-marker ${complete ? 'complete' : ''}`}>
-          {complete ? <CheckIcon /> : num}
+          {complete ? <CheckIcon /> : <span className="step-dot" />}
         </span>
         <span className="step-section-title">{title}</span>
-        <span className="step-section-chevron">{isOpen ? '▾' : '▸'}</span>
+        <svg
+          className="step-section-chevron"
+          viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+          width="16" height="16" aria-hidden="true"
+        >
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
       </button>
       {isOpen && <div className="step-section-body">{children}</div>}
     </div>
@@ -430,7 +441,7 @@ export default function Article({ topic, flatTopics, progressState, onDbUpdate }
         {activeView === 'article' && (
           <div ref={accordionRef}>
             <StepSection
-              stepKey="keyConcepts" num={1} title="What You Need to Know"
+              stepKey="keyConcepts" title="What You Need to Know"
               complete={stepComplete.keyConcepts} isOpen={openStep === 'keyConcepts'} onOpen={setOpenStep}
             >
               {isEditingKeyConcepts ? (
@@ -455,7 +466,7 @@ export default function Article({ topic, flatTopics, progressState, onDbUpdate }
             </StepSection>
 
             <StepSection
-              stepKey="images" num={2} title="Visual Examples"
+              stepKey="images" title="Visual Examples"
               complete={stepComplete.images} isOpen={openStep === 'images'} onOpen={setOpenStep}
             >
               <div className="no-print step-upload-row">
@@ -497,7 +508,7 @@ export default function Article({ topic, flatTopics, progressState, onDbUpdate }
             </StepSection>
 
             <StepSection
-              stepKey="notes" num={3} title="Lesson"
+              stepKey="notes" title="Lesson"
               complete={stepComplete.notes} isOpen={openStep === 'notes'} onOpen={setOpenStep}
             >
               {isEditingNotes ? (

@@ -677,83 +677,105 @@ body.dark {
   color: var(--color-text-primary);
 }
 
-/* --- Guided step-flow (Key Concepts / Images / Text Notes) --- */
+/* --- Guided step-flow (Key Concepts / Images / Text Notes) ---
+   Deliberately chrome-free: a single hairline separates steps, and no
+   background fill distinguishes open from closed. An earlier card-based
+   treatment made a *closed* step read as selected, because closed steps
+   were filled and open ones weren't. Emphasis now comes from the content
+   being visible, not from the container. */
 .step-section {
-  border: 1px solid var(--color-border-primary);
-  border-radius: var(--radius-lg);
-  margin-bottom: 16px;
-  background: var(--color-bg-primary);
-  overflow: hidden;
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  border-top: 1px solid var(--color-border-primary);
 }
-.step-section.open {
-  border-color: var(--color-border-secondary);
-  box-shadow: var(--shadow-sm);
+.step-section:last-of-type {
+  border-bottom: 1px solid var(--color-border-primary);
 }
 
 .step-section-header {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 18px 20px;
-  background: var(--color-bg-secondary);
+  gap: 12px;
+  padding: 20px 4px;
+  background: transparent;
   border: none;
   cursor: pointer;
   text-align: left;
-  transition: background-color var(--transition-fast);
-}
-.step-section.open .step-section-header {
-  background: var(--color-bg-primary);
-  border-bottom: 1px solid var(--color-border-primary);
+  color: var(--color-text-secondary);
+  transition: color var(--transition-fast);
 }
 .step-section-header:hover {
-  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
 }
-.step-section.open .step-section-header:hover {
-  background: var(--color-bg-primary);
+.step-section.open .step-section-header {
+  color: var(--color-text-primary);
 }
 
+/* Step state, in order of loudness: complete (muted check) < current (brand dot)
+   < neither (hollow ring). None of them are filled shapes — at 3 steps the page
+   only needs a hint, and solid circles were outweighing the prose beside them. */
 .step-section-marker {
   flex-shrink: 0;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
+  width: 18px;
+  height: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: var(--text-sm);
-  font-weight: 700;
   color: var(--color-text-tertiary);
-  background: var(--color-bg-tertiary);
-  border: 1px solid var(--color-border-secondary);
+}
+.step-section-marker .step-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
 }
 .step-section.open .step-section-marker {
-  color: white;
-  background: var(--color-brand);
-  border-color: var(--color-brand);
+  color: var(--color-brand);
+}
+.step-section.open .step-section-marker .step-dot {
+  background: currentColor;
 }
 .step-section-marker.complete {
-  color: white;
-  background: var(--color-success);
-  border-color: var(--color-success);
+  color: var(--color-success);
 }
 
 .step-section-title {
   flex: 1;
   font-family: var(--font-family-display);
-  font-size: var(--text-lg);
+  font-size: var(--text-xl);
   font-weight: 600;
-  color: var(--color-text-primary);
+  letter-spacing: -0.01em;
+  color: inherit;
 }
 
 .step-section-chevron {
+  flex-shrink: 0;
   color: var(--color-text-tertiary);
-  font-size: var(--text-sm);
+  transition: transform var(--transition-fast);
+}
+.step-section.open .step-section-chevron {
+  transform: rotate(180deg);
 }
 
 .step-section-body {
-  padding: 20px;
+  padding: 0 0 28px 30px;
+  animation: step-body-in 0.2s ease-out;
+}
+@keyframes step-body-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 640px) {
+  .step-section-header {
+    padding: 16px 2px;
+    gap: 10px;
+  }
+  .step-section-title {
+    font-size: var(--text-lg);
+  }
+  .step-section-body {
+    padding: 0 0 24px 0;
+  }
 }
 
 .step-editable {
@@ -813,6 +835,10 @@ body.dark {
   font-size: var(--text-sm);
   color: var(--color-text-tertiary);
   font-weight: 500;
+  white-space: nowrap;
+}
+.step-next-btn {
+  white-space: nowrap;
 }
 .step-next-btn {
   padding: 10px 20px;
