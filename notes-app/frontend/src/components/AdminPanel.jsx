@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import ConfirmDialog from './ui/ConfirmDialog';
+import Toast from './ui/Toast';
+import { useToast } from '../hooks/useToast';
 
 export default function AdminPanel({ isAdmin }) {
   const [users, setUsers] = useState(null);
   const [error, setError] = useState(null);
-  const [deletingUid, setDeletingUid] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const navigate = useNavigate();
+  const { toast, showToast } = useToast();
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -18,90 +22,71 @@ export default function AdminPanel({ isAdmin }) {
   if (!isAdmin) {
     return (
       <main className="main-content-area">
-        <div style={{ textAlign: 'center', marginTop: '100px', color: 'var(--color-text-tertiary)' }}>
+        <div className="page-message">
           <h2>Admins only</h2>
           <p>You don't have access to this page.</p>
-          <button
-            onClick={() => navigate('/')}
-            style={{ marginTop: '16px', padding: '8px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border-primary)', background: 'var(--color-bg-secondary)', color: 'var(--color-text-primary)', cursor: 'pointer', fontSize: 'var(--text-base)' }}
-          >
-            Go home
-          </button>
+          <button className="btn-secondary" onClick={() => navigate('/')}>Go home</button>
         </div>
       </main>
     );
   }
 
-  const handleDelete = async (u) => {
-    if (!confirm(`Delete ${u.email}'s account and all ${u.courseCount} of their course(s)? This can't be undone.`)) return;
-    setDeletingUid(u.uid);
-    try {
-      const res = await fetch(`/api/admin/users/${u.uid}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error((await res.json()).error || `Server returned ${res.status}`);
-      setUsers(prev => prev.filter(x => x.uid !== u.uid));
-    } catch (err) {
-      alert(`Failed to delete: ${err.message}`);
-    } finally {
-      setDeletingUid(null);
+  const handleDeleteConfirm = async () => {
+    const res = await fetch(`/api/admin/users/${deleteTarget.uid}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || `Could not delete this account (server returned ${res.status}).`);
     }
+    setUsers(prev => prev.filter(x => x.uid !== deleteTarget.uid));
+    showToast(`Deleted ${deleteTarget.email}`);
   };
 
   return (
     <main className="main-content-area">
       <h1>Platform Users</h1>
-      <p style={{ color: 'var(--color-text-secondary)', marginBottom: '32px' }}>
+      <p className="page-intro">
         Everyone who has signed in. Each user's courses/notes are private to them — you can't
         see their content, only manage their account.
       </p>
 
-      {error && <div style={{ color: '#ef4444' }}>Error: {error}</div>}
-      {!users && !error && <div>Loading…</div>}
+      {error && <div className="alert alert-error">{error}</div>}
+      {!users && !error && <div className="content-loading-bar" aria-label="Loading users" />}
 
       {users && (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+        <div className="data-table-wrapper">
+          <table className="data-table">
             <thead>
-              <tr style={{ borderBottom: '1px solid var(--color-border-primary)', textAlign: 'left' }}>
-                <th style={thStyle}>User</th>
-                <th style={thStyle}>Role</th>
-                <th style={thStyle}>Courses</th>
-                <th style={thStyle}>Last seen</th>
-                <th style={thStyle}>Joined</th>
-                <th style={thStyle}></th>
+              <tr>
+                <th>User</th>
+                <th>Role</th>
+                <th>Courses</th>
+                <th>Last seen</th>
+                <th>Joined</th>
+                <th><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody>
               {users.map(u => (
-                <tr key={u.uid} style={{ borderBottom: '1px solid var(--color-border-secondary)' }}>
-                  <td style={tdStyle}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      {u.photoURL && <img src={u.photoURL} alt="" style={{ width: '28px', height: '28px', borderRadius: '50%' }} />}
+                <tr key={u.uid}>
+                  <td>
+                    <div className="data-table-user">
+                      {u.photoURL && <img src={u.photoURL} alt="" className="data-table-avatar" />}
                       <div>
                         <div>{u.displayName || '(no name)'}</div>
-                        <div style={{ color: 'var(--color-text-tertiary)', fontSize: '0.8rem' }}>{u.email}</div>
+                        <div className="data-table-subtext">{u.email}</div>
                       </div>
                     </div>
                   </td>
-                  <td style={tdStyle}>
-                    <span style={{
-                      padding: '2px 8px', borderRadius: 'var(--radius-full)', fontSize: '0.75rem', fontWeight: 600,
-                      background: u.role === 'admin' ? 'var(--color-brand)' : 'var(--color-bg-tertiary)',
-                      color: u.role === 'admin' ? '#fff' : 'var(--color-text-secondary)',
-                    }}>
-                      {u.role}
-                    </span>
+                  <td>
+                    <span className={`role-pill ${u.role === 'admin' ? 'admin' : ''}`}>{u.role}</span>
                   </td>
-                  <td style={tdStyle}>{u.courseCount}</td>
-                  <td style={tdStyle}>{u.lastSeenAt ? new Date(u.lastSeenAt).toLocaleString() : '—'}</td>
-                  <td style={tdStyle}>{u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}</td>
-                  <td style={tdStyle}>
+                  <td>{u.courseCount}</td>
+                  <td>{u.lastSeenAt ? new Date(u.lastSeenAt).toLocaleString() : '—'}</td>
+                  <td>{u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}</td>
+                  <td>
                     {u.role !== 'admin' && (
-                      <button
-                        onClick={() => handleDelete(u)}
-                        disabled={deletingUid === u.uid}
-                        style={{ padding: '6px 12px', borderRadius: 'var(--radius-md)', border: '1px solid #fecaca', color: '#ef4444', background: 'transparent', cursor: 'pointer', fontSize: '0.8rem' }}
-                      >
-                        {deletingUid === u.uid ? 'Deleting…' : 'Delete'}
+                      <button className="btn-danger-outline" onClick={() => setDeleteTarget(u)}>
+                        Delete
                       </button>
                     )}
                   </td>
@@ -109,12 +94,21 @@ export default function AdminPanel({ isAdmin }) {
               ))}
             </tbody>
           </table>
-          {users.length === 0 && <p style={{ color: 'var(--color-text-tertiary)' }}>No other users yet.</p>}
+          {users.length === 0 && <p className="page-intro">No other users yet.</p>}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDeleteConfirm}
+        title="Delete account"
+        message={`Delete ${deleteTarget?.email}'s account and all ${deleteTarget?.courseCount} of their course(s)? This can't be undone.`}
+        confirmLabel="Delete account"
+        danger
+      />
+
+      <Toast toast={toast} />
     </main>
   );
 }
-
-const thStyle = { padding: '10px 12px', color: 'var(--color-text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.5px' };
-const tdStyle = { padding: '10px 12px' };

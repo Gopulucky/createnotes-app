@@ -2,6 +2,10 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { slugify } from '../App';
 import { useAuth } from '../contexts/AuthContext';
+import FormDialog from './ui/FormDialog';
+import ConfirmDialog from './ui/ConfirmDialog';
+import Toast from './ui/Toast';
+import { useToast } from '../hooks/useToast';
 
 const EditIcon = () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>);
 const TrashIcon = () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>);
@@ -28,45 +32,52 @@ export default function CourseDashboard({ courses, progressState, onDbUpdate }) 
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [filter, setFilter] = useState('all');
+  const { toast, showToast } = useToast();
+
+  // courseDialog: null | { mode: 'add' } | { mode: 'edit', id }
+  const [courseDialog, setCourseDialog] = useState(null);
+  const [formTitle, setFormTitle] = useState('');
+  const [formDescription, setFormDescription] = useState('');
+  // deleteDialog: null | { id, title }
+  const [deleteDialog, setDeleteDialog] = useState(null);
 
   const firstName = currentUser?.displayName?.trim().split(' ')[0] || null;
 
-  const handleAddCourse = async () => {
-    const title = prompt("Enter new course title (e.g., Sigma 10):");
-    if (!title) return;
-    const description = prompt("Enter course description:");
-    try {
-      const res = await fetch('/api/courses', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description: description || '' })
-      });
-      onDbUpdate(await res.json());
-    } catch (e) { console.error(e); }
+  const openAddCourse = () => {
+    setFormTitle('');
+    setFormDescription('');
+    setCourseDialog({ mode: 'add' });
   };
 
-  const handleEditCourse = async (e, id, currentTitle, currentDesc) => {
+  const openEditCourse = (e, course) => {
     e.stopPropagation();
-    const title = prompt("Edit course title:", currentTitle);
-    if (!title) return;
-    const description = prompt("Edit description:", currentDesc);
-    try {
-      const res = await fetch(`/api/courses/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description })
-      });
-      onDbUpdate(await res.json());
-    } catch (e) { console.error(e); }
+    setFormTitle(course.title);
+    setFormDescription(course.description || '');
+    setCourseDialog({ mode: 'edit', id: course.id });
   };
 
-  const handleDeleteCourse = async (e, id) => {
+  const handleCourseFormSubmit = async () => {
+    const isEdit = courseDialog.mode === 'edit';
+    const res = await fetch(isEdit ? `/api/courses/${courseDialog.id}` : '/api/courses', {
+      method: isEdit ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: formTitle.trim(), description: formDescription.trim() }),
+    });
+    if (!res.ok) throw new Error('Could not save the course — please try again.');
+    onDbUpdate(await res.json());
+    showToast(isEdit ? 'Course updated' : 'Course created');
+  };
+
+  const openDeleteCourse = (e, course) => {
     e.stopPropagation();
-    if (!confirm("Are you sure you want to completely delete this course and all its modules?")) return;
-    try {
-      const res = await fetch(`/api/courses/${id}`, { method: 'DELETE' });
-      onDbUpdate(await res.json());
-    } catch (e) { console.error(e); }
+    setDeleteDialog({ id: course.id, title: course.title });
+  };
+
+  const handleDeleteConfirm = async () => {
+    const res = await fetch(`/api/courses/${deleteDialog.id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Could not delete the course — please try again.');
+    onDbUpdate(await res.json());
+    showToast('Course deleted');
   };
 
   const coursesWithStats = courses.map((course) => {
@@ -98,7 +109,7 @@ export default function CourseDashboard({ courses, progressState, onDbUpdate }) 
             </p>
           )}
         </div>
-        <button className="add-course-btn" onClick={handleAddCourse}>
+        <button className="add-course-btn" onClick={openAddCourse}>
           + Add New Course
         </button>
       </header>
@@ -108,7 +119,7 @@ export default function CourseDashboard({ courses, progressState, onDbUpdate }) 
           <h2>No courses yet</h2>
           <p>Add a course to start organizing your notes, or import a folder of lecture screenshots and let AI build one for you.</p>
           <div className="dashboard-empty-actions">
-            <button className="add-course-btn" onClick={handleAddCourse}>+ Add New Course</button>
+            <button className="add-course-btn" onClick={openAddCourse}>+ Add New Course</button>
             <Link to="/import" className="import-nav-btn">Import Screenshots</Link>
           </div>
         </div>
@@ -140,8 +151,8 @@ export default function CourseDashboard({ courses, progressState, onDbUpdate }) 
                   </div>
 
                   <div className="course-card-actions">
-                    <button onClick={(e) => handleEditCourse(e, course.id, course.title, course.description)}><EditIcon /></button>
-                    <button onClick={(e) => handleDeleteCourse(e, course.id)}><TrashIcon /></button>
+                    <button onClick={(e) => openEditCourse(e, course)} aria-label={`Edit ${course.title}`} title="Edit course"><EditIcon /></button>
+                    <button onClick={(e) => openDeleteCourse(e, course)} aria-label={`Delete ${course.title}`} title="Delete course"><TrashIcon /></button>
                   </div>
                 </div>
 
@@ -171,6 +182,49 @@ export default function CourseDashboard({ courses, progressState, onDbUpdate }) 
           )}
         </>
       )}
+
+      <FormDialog
+        open={!!courseDialog}
+        onClose={() => setCourseDialog(null)}
+        onSubmit={handleCourseFormSubmit}
+        title={courseDialog?.mode === 'edit' ? 'Edit course' : 'Add new course'}
+        submitLabel={courseDialog?.mode === 'edit' ? 'Save changes' : 'Create course'}
+        canSubmit={formTitle.trim().length > 0}
+      >
+        <div className="field">
+          <label className="field-label" htmlFor="course-title-input">Title</label>
+          <input
+            id="course-title-input"
+            className="field-input"
+            value={formTitle}
+            onChange={(e) => setFormTitle(e.target.value)}
+            placeholder="e.g. Sigma 10"
+            autoFocus
+          />
+        </div>
+        <div className="field">
+          <label className="field-label" htmlFor="course-desc-input">Description (optional)</label>
+          <textarea
+            id="course-desc-input"
+            className="field-textarea"
+            value={formDescription}
+            onChange={(e) => setFormDescription(e.target.value)}
+            placeholder="What's this course about?"
+          />
+        </div>
+      </FormDialog>
+
+      <ConfirmDialog
+        open={!!deleteDialog}
+        onClose={() => setDeleteDialog(null)}
+        onConfirm={handleDeleteConfirm}
+        title="Delete course"
+        message={`Delete "${deleteDialog?.title}" and all its modules and topics? This can't be undone.`}
+        confirmLabel="Delete course"
+        danger
+      />
+
+      <Toast toast={toast} />
     </div>
   );
 }

@@ -99,103 +99,95 @@ export default function ImportPanel({ courses, onImportComplete }) {
     // built for the article/sidebar layout, and under the navbar it pushes this form's lower
     // half (file pickers + submit) out of reach. This page just wants normal document flow.
     <main className="import-page">
-      <div style={{ maxWidth: '640px', margin: '0 auto' }}>
+      <div className="import-inner">
         <h1>Import from Screenshots</h1>
-        <p style={{ color: 'var(--color-text-secondary)', marginBottom: '32px' }}>
+        <p className="page-intro">
           Pick a folder of lecture screenshots and a free Gemini API key — it'll group them into
           topics and write notes, key concepts, code, and flashcards automatically.
         </p>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div>
-            <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '8px', color: 'var(--color-text-secondary)' }}>
-              Gemini API key
-            </label>
+        <div className="import-form">
+          <div className="field">
+            <label className="field-label" htmlFor="import-api-key">Gemini API key</label>
             <input
+              id="import-api-key"
+              className="field-input"
               type="password"
               value={apiKey}
               onChange={e => setApiKey(e.target.value)}
               placeholder="Paste your key here"
               autoComplete="off"
-              style={inputStyle}
             />
-            <p style={{ fontSize: '0.78rem', color: 'var(--color-text-tertiary)', marginTop: '6px' }}>
+            <p className="field-help">
               Not stored anywhere — used only for this import, then discarded. Get a free key at{' '}
               <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">aistudio.google.com/apikey</a>.
             </p>
           </div>
 
-          <div>
-            <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '8px', color: 'var(--color-text-secondary)' }}>
-              Course
-            </label>
-            <select value={courseId} onChange={e => setCourseId(e.target.value)} style={inputStyle}>
+          <div className="field">
+            <label className="field-label" htmlFor="import-course">Course</label>
+            <select id="import-course" className="field-select" value={courseId} onChange={e => setCourseId(e.target.value)}>
               {(courses || []).map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
             </select>
           </div>
 
-          <div>
-            <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '8px', color: 'var(--color-text-secondary)' }}>
-              Module name <span style={{ color: 'var(--color-text-tertiary)', fontWeight: 400 }}>(optional)</span>
-            </label>
+          <div className="field">
+            <label className="field-label" htmlFor="import-module">Module name (optional)</label>
             <input
+              id="import-module"
+              className="field-input"
               type="text"
               value={moduleName}
               onChange={e => setModuleName(e.target.value)}
               placeholder="Leave blank to auto-detect modules"
-              style={inputStyle}
             />
-            <p style={{ fontSize: '0.78rem', color: 'var(--color-text-tertiary)', marginTop: '6px' }}>
+            <p className="field-help">
               Leave this blank for a mixed batch (e.g. a whole DSA playlist) and it will split the
               screenshots into separate modules by concept — Sorting, Linked Lists, Backtracking, and
               so on. Fill it in to force everything into one module instead.
             </p>
           </div>
 
-          <div>
-            <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '8px', color: 'var(--color-text-secondary)' }}>
-              Screenshots
-            </label>
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <div className="field">
+            <span className="field-label">Screenshots</span>
+            <div className="import-picker-row">
               <input ref={folderInputRef} type="file" multiple onChange={handlePick} style={{ display: 'none' }} />
               <input ref={filesInputRef} type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={handlePick} style={{ display: 'none' }} />
-              <button type="button" onClick={() => folderInputRef.current?.click()} style={secondaryBtnStyle}>Select folder</button>
-              <button type="button" onClick={() => filesInputRef.current?.click()} style={secondaryBtnStyle}>Select files</button>
+              <button type="button" className="btn-secondary" onClick={() => folderInputRef.current?.click()}>Select folder</button>
+              <button type="button" className="btn-secondary" onClick={() => filesInputRef.current?.click()}>Select files</button>
             </div>
-            <p style={{ fontSize: '0.85rem', marginTop: '8px', color: files.length > 0 ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)' }}>
+            <p className={`import-file-status ${files.length > 0 ? 'has-files' : ''}`}>
               {files.length > 0 ? `${files.length} images selected` : 'No screenshots selected yet'}
             </p>
-            {pickWarning && (
-              <p style={{ fontSize: '0.8rem', color: '#ef4444', marginTop: '4px' }}>{pickWarning}</p>
-            )}
-            <p style={{ fontSize: '0.78rem', color: 'var(--color-text-tertiary)', marginTop: '6px' }}>
+            {pickWarning && <p className="import-warning">{pickWarning}</p>}
+            <p className="field-help">
               "Select folder" needs a Chromium-based browser (Chrome, Edge). Use "Select files" on Firefox/Safari
               — you can select every screenshot at once with Ctrl/Cmd+A inside the picker.
             </p>
           </div>
 
-          <button onClick={handleSubmit} disabled={!canSubmit} style={{ ...primaryBtnStyle, opacity: canSubmit ? 1 : 0.5, cursor: canSubmit ? 'pointer' : 'not-allowed' }}>
+          <button className="btn-primary import-submit" onClick={handleSubmit} disabled={!canSubmit}>
             {running ? 'Importing…' : 'Start Import'}
           </button>
         </div>
 
         {(log.length > 0 || error || done) && (
-          <div style={{ marginTop: '28px', background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-primary)', borderRadius: 'var(--radius-md)', padding: '16px' }}>
-            {log.map((l, i) => <div key={i} style={{ fontSize: '0.85rem', fontFamily: 'monospace', marginBottom: '4px' }}>{l}</div>)}
-            {error && <div style={{ color: '#ef4444', fontWeight: 600, marginTop: '8px' }}>Error: {error}</div>}
+          <div className="import-progress" role="status" aria-live="polite">
+            {log.map((l, i) => <div key={i} className="import-log-line">{l}</div>)}
+            {error && <div className="alert alert-error" style={{ marginTop: '8px', marginBottom: 0 }}>{error}</div>}
             {done && (
-              <div style={{ marginTop: '8px' }}>
-                <div style={{ color: 'var(--color-success)', fontWeight: 600 }}>
+              <div className="import-done">
+                <div className="import-done-headline">
                   Done — added {done.moduleCount} module{done.moduleCount === 1 ? '' : 's'} with {done.topicCount} topics.
                 </div>
                 {done.modules?.length > 0 && (
-                  <ul style={{ margin: '8px 0 0', paddingLeft: '20px', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                  <ul className="import-done-list">
                     {done.modules.map((m, i) => (
                       <li key={i}>{m.title} — {m.topicCount} topic{m.topicCount === 1 ? '' : 's'}</li>
                     ))}
                   </ul>
                 )}
-                <button onClick={() => navigate('/')} style={{ ...secondaryBtnStyle, marginTop: '10px' }}>Go to dashboard</button>
+                <button className="btn-secondary" style={{ marginTop: '12px' }} onClick={() => navigate('/')}>Go to dashboard</button>
               </div>
             )}
           </div>
@@ -204,19 +196,3 @@ export default function ImportPanel({ courses, onImportComplete }) {
     </main>
   );
 }
-
-const inputStyle = {
-  width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-md)',
-  border: '1px solid var(--color-border-primary)', background: 'var(--color-bg-primary)',
-  color: 'var(--color-text-primary)', outline: 'none', fontSize: 'var(--text-lg)',
-};
-
-const primaryBtnStyle = {
-  padding: '12px 20px', background: 'var(--color-brand)', color: '#fff',
-  border: 'none', borderRadius: 'var(--radius-md)', fontWeight: 600, fontSize: 'var(--text-lg)',
-};
-
-const secondaryBtnStyle = {
-  padding: '8px 16px', background: 'var(--color-bg-secondary)', color: 'var(--color-text-primary)',
-  border: '1px solid var(--color-border-primary)', borderRadius: 'var(--radius-md)', cursor: 'pointer', fontSize: 'var(--text-base)',
-};
