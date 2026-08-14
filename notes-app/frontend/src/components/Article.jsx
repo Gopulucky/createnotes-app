@@ -6,7 +6,7 @@ import Flashcards from './Flashcards';
 import ConfirmDialog from './ui/ConfirmDialog';
 import Toast from './ui/Toast';
 import { useToast } from '../hooks/useToast';
-import { isTopicComplete } from '../lib/completion';
+import { isTopicComplete, filledCount, COMPLETION_STEPS } from '../lib/completion';
 
 // Monaco is a multi-MB dependency — only fetch it when the Code tab is actually opened.
 const Editor = lazy(() => import('@monaco-editor/react'));
@@ -16,11 +16,12 @@ const EMPTY_CONTENT = {
   keyConcepts: '', flashcards: [], expectedOutput: '', codeMeta: { filename: 'script.js' },
 };
 
-// Drives the guided step-flow for the Learn tab — one section open at a time,
-// in this order, with a sticky "Next" bar walking the user through them.
-const ARTICLE_STEPS = [
+// Drives the guided step-flow inside the Learn tab — one section open at a time, with
+// a sticky "Next" bar walking the user through them. Visual Examples used to be the
+// middle step here; it's now its own top-level tab (see the tab bar below), so Learn
+// keeps just the two prose steps.
+const LEARN_STEPS = [
   { key: 'keyConcepts', label: 'What You Need to Know' },
-  { key: 'images', label: 'Visual Examples' },
   { key: 'notes', label: 'Lesson' },
 ];
 
@@ -110,7 +111,7 @@ export default function Article({ topic, flatTopics, completionState, onCompleti
   const [isEditingOutput, setIsEditingOutput] = useState(false);
   const [isEditingCodeMeta, setIsEditingCodeMeta] = useState(false);
   const [isOutputRevealed, setIsOutputRevealed] = useState(false);
-  const [openStep, setOpenStep] = useState(ARTICLE_STEPS[0].key);
+  const [openStep, setOpenStep] = useState(LEARN_STEPS[0].key);
   const [activeView, setActiveView] = useState('article');
   const [deleteImageUrl, setDeleteImageUrl] = useState(null);
 
@@ -162,7 +163,7 @@ export default function Article({ topic, flatTopics, completionState, onCompleti
     setIsEditingOutput(false);
     setIsEditingCodeMeta(false);
     setIsOutputRevealed(false);
-    setOpenStep(ARTICLE_STEPS[0].key);
+    setOpenStep(LEARN_STEPS[0].key);
     setSaveStatus('idle');
     setLastSavedAt(null);
 
@@ -180,13 +181,12 @@ export default function Article({ topic, flatTopics, completionState, onCompleti
 
         // Resume where they left off — jump straight to the first unfinished step
         // instead of always restarting at the top.
-        const completion = {
+        const learnCompletion = {
           keyConcepts: !!(data.keyConcepts || '').trim(),
-          images: (data.images || []).length > 0,
           notes: !!(data.notes || '').trim(),
         };
-        const firstIncomplete = ARTICLE_STEPS.find(s => !completion[s.key]);
-        setOpenStep(firstIncomplete ? firstIncomplete.key : ARTICLE_STEPS[0].key);
+        const firstIncomplete = LEARN_STEPS.find(s => !learnCompletion[s.key]);
+        setOpenStep(firstIncomplete ? firstIncomplete.key : LEARN_STEPS[0].key);
       })
       .catch(err => console.error('Failed to load topic content:', err))
       .finally(() => { if (!cancelled) setContentLoading(false); });
@@ -326,21 +326,24 @@ export default function Article({ topic, flatTopics, completionState, onCompleti
   const prevTopic = currentIndex > 0 ? flatTopics[currentIndex - 1] : null;
   const nextTopic = currentIndex < flatTopics.length - 1 ? flatTopics[currentIndex + 1] : null;
 
+  // Spans all 3 content areas (matches lib/completion.js's shape), even though only
+  // 2 of them — keyConcepts/notes — live inside the Learn accordion below. Visual
+  // Examples is its own tab now, but still counts toward "how filled in is this topic".
   const stepComplete = {
     keyConcepts: !!localKeyConcepts.trim(),
     images: topicImages.length > 0,
     notes: !!localNotes.trim(),
   };
-  const stepsFilled = ARTICLE_STEPS.filter(s => stepComplete[s.key]).length;
-  const currentStepIndex = ARTICLE_STEPS.findIndex(s => s.key === openStep);
-  const currentStep = ARTICLE_STEPS[currentStepIndex] || ARTICLE_STEPS[0];
-  const nextStep = ARTICLE_STEPS[currentStepIndex + 1];
+  const stepsFilled = filledCount(stepComplete);
+  const currentStepIndex = LEARN_STEPS.findIndex(s => s.key === openStep);
+  const currentStep = LEARN_STEPS[currentStepIndex] || LEARN_STEPS[0];
+  const nextStep = LEARN_STEPS[currentStepIndex + 1];
 
   const goToNextStep = () => {
     if (nextStep) {
       setOpenStep(nextStep.key);
     } else {
-      setActiveView('code');
+      setActiveView('images');
     }
   };
 
@@ -366,6 +369,8 @@ export default function Article({ topic, flatTopics, completionState, onCompleti
   // "continue" — just a quiet completion note instead.
   const primaryAction = activeView === 'article'
     ? { label: `Continue: ${currentStep.label}`, onClick: () => { setOpenStep(currentStep.key); accordionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }
+    : activeView === 'images'
+    ? { label: 'Continue: Try the Code', onClick: () => setActiveView('code') }
     : activeView === 'code'
     ? { label: 'Continue: Quick Review', onClick: () => setActiveView('flashcards') }
     : null;
@@ -389,7 +394,7 @@ export default function Article({ topic, flatTopics, completionState, onCompleti
               {primaryAction.label} →
             </button>
             {activeView === 'article' && (
-              <span className="primary-cta-caption">Step {currentStepIndex + 1} of {ARTICLE_STEPS.length}</span>
+              <span className="primary-cta-caption">Step {currentStepIndex + 1} of {LEARN_STEPS.length}</span>
             )}
           </div>
         )}
@@ -401,10 +406,10 @@ export default function Article({ topic, flatTopics, completionState, onCompleti
 
         <div className="no-print topic-meta-bar">
           {/* Completion is derived from the content itself — there's no status to set. */}
-          <span className={`topic-fill-summary ${stepsFilled === ARTICLE_STEPS.length ? 'complete' : ''}`}>
-            {stepsFilled === ARTICLE_STEPS.length
+          <span className={`topic-fill-summary ${stepsFilled === COMPLETION_STEPS.length ? 'complete' : ''}`}>
+            {stepsFilled === COMPLETION_STEPS.length
               ? 'All sections filled in'
-              : `${stepsFilled} of ${ARTICLE_STEPS.length} sections filled in`}
+              : `${stepsFilled} of ${COMPLETION_STEPS.length} sections filled in`}
           </span>
           <div className="topic-meta-bar-right">
             {saveIndicatorText && (
@@ -418,6 +423,7 @@ export default function Article({ topic, flatTopics, completionState, onCompleti
         <div className="no-print tabs" role="tablist">
           {[
             { key: 'article', label: 'Learn' },
+            { key: 'images', label: 'Visual Examples' },
             { key: 'code', label: 'Try the Code' },
             { key: 'flashcards', label: 'Quick Review' },
           ].map(tab => (
@@ -461,48 +467,6 @@ export default function Article({ topic, flatTopics, completionState, onCompleti
             </StepSection>
 
             <StepSection
-              stepKey="images" title="Visual Examples"
-              complete={stepComplete.images} isOpen={openStep === 'images'} onOpen={setOpenStep}
-            >
-              <div className="no-print step-upload-row">
-                <input type="file" accept="image/*" style={{ display: 'none' }} ref={fileInputRef} onChange={handleImageUpload} />
-                <button className="btn-primary" onClick={() => fileInputRef.current?.click()}>
-                  + Upload Image
-                </button>
-              </div>
-
-              {topicImages.length > 0 ? (
-                <div className="image-grid">
-                  {topicImages.map((img, i) => (
-                    <div key={i} className="image-tile">
-                      <img
-                        src={img.startsWith('http') || img.startsWith('data:') ? img : `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}${img}`}
-                        alt="Uploaded reference"
-                        loading="lazy"
-                        decoding="async"
-                        onError={(e) => {
-                          e.target.onerror = null;
-                          e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="%239ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline><line x1="3" y1="3" x2="21" y2="21"></line></svg>';
-                          e.target.style.objectFit = 'none';
-                        }}
-                      />
-                      <button
-                        className="no-print image-tile-delete"
-                        onClick={() => setDeleteImageUrl(img)}
-                        aria-label="Remove image"
-                        title="Remove image"
-                      >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="step-empty-hint">Add a diagram or screenshot that makes this concept click.</p>
-              )}
-            </StepSection>
-
-            <StepSection
               stepKey="notes" title="Lesson"
               complete={stepComplete.notes} isOpen={openStep === 'notes'} onOpen={setOpenStep}
             >
@@ -528,9 +492,58 @@ export default function Article({ topic, flatTopics, completionState, onCompleti
             </StepSection>
 
             <div className="step-next-bar no-print">
-              <span className="step-next-progress">Step {currentStepIndex + 1} of {ARTICLE_STEPS.length}</span>
+              <span className="step-next-progress">Step {currentStepIndex + 1} of {LEARN_STEPS.length}</span>
               <button className="step-next-btn" onClick={goToNextStep}>
-                {nextStep ? `Next: ${nextStep.label}` : 'Continue: Try the Code'} →
+                {nextStep ? `Next: ${nextStep.label}` : 'Continue: Visual Examples'} →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {activeView === 'images' && (
+          <div id="visual-examples">
+            <h2>Visual Examples</h2>
+            <div className="no-print step-upload-row">
+              <input type="file" accept="image/*" style={{ display: 'none' }} ref={fileInputRef} onChange={handleImageUpload} />
+              <button className="btn-primary" onClick={() => fileInputRef.current?.click()}>
+                + Upload Image
+              </button>
+            </div>
+
+            {topicImages.length > 0 ? (
+              <div className="image-grid">
+                {topicImages.map((img, i) => (
+                  <div key={i} className="image-tile">
+                    <img
+                      src={img.startsWith('http') || img.startsWith('data:') ? img : `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}${img}`}
+                      alt="Uploaded reference"
+                      loading="lazy"
+                      decoding="async"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="%239ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline><line x1="3" y1="3" x2="21" y2="21"></line></svg>';
+                        e.target.style.objectFit = 'none';
+                      }}
+                    />
+                    <button
+                      className="no-print image-tile-delete"
+                      onClick={() => setDeleteImageUrl(img)}
+                      aria-label="Remove image"
+                      title="Remove image"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="step-empty-hint">Add a diagram or screenshot that makes this concept click.</p>
+            )}
+
+            <div className="step-next-bar no-print">
+              <span className="step-next-progress">Visual examples</span>
+              <button className="step-next-btn" onClick={() => setActiveView('code')}>
+                Continue: Try the Code →
               </button>
             </div>
           </div>
