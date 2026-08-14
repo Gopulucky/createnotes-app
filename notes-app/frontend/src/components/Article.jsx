@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import { slugify } from '../App';
-import PomodoroTimer from './PomodoroTimer';
 import Flashcards from './Flashcards';
 
 // Monaco is a multi-MB dependency — only fetch it when the Code tab is actually opened.
@@ -325,11 +324,8 @@ export default function Article({ topic, flatTopics, progressState, onDbUpdate }
 
   return (
     <main className="main-content-area print-area">
-      <div className="article-layout">
-
-        {/* Main Content Column */}
-        <div className="article-main-col">
-          {contentLoading && <div className="content-loading-bar" aria-hidden="true" />}
+      <div className="article-main-col">
+        {contentLoading && <div className="content-loading-bar" aria-hidden="true" />}
 
           <h1>{topic.title}</h1>
 
@@ -682,35 +678,6 @@ export default function Article({ topic, flatTopics, progressState, onDbUpdate }
               </button>
             ) : <div></div>}
           </div>
-        </div> {/* CLOSE MAIN CONTENT COLUMN */}
-
-        {/* Right Sidebar - Pomodoro & step progress (moves below the article on mobile, see .article-aside) */}
-        <aside className="no-print article-aside">
-          <div>
-            {/* Pomodoro Timer Widget */}
-            <PomodoroTimer />
-
-            {/* Step progress — replaces a scroll-spy TOC now that sections open one at a time */}
-            {activeView === 'article' && (
-              <div className="step-progress-rail">
-                <h3 className="rail-heading">Progress</h3>
-                {ARTICLE_STEPS.map((step, i) => (
-                  <button
-                    key={step.key}
-                    className={`step-progress-item ${openStep === step.key ? 'active' : ''} ${stepComplete[step.key] ? 'complete' : ''}`}
-                    onClick={() => setOpenStep(step.key)}
-                  >
-                    <span className="step-progress-marker">
-                      {stepComplete[step.key] ? <CheckIcon /> : i + 1}
-                    </span>
-                    {step.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </aside>
-
       </div>
 
       {toast && (

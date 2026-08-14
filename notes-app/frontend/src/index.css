@@ -497,25 +497,9 @@ body.dark {
   box-shadow: 0 0 0 3px rgba(67, 56, 202, 0.12);
 }
 
-/* --- Article layout (main content + right-hand TOC/Pomodoro aside) --- */
-.article-layout {
-  display: flex;
-  gap: 48px;
-  width: 100%;
-  align-items: flex-start;
-}
+/* --- Article layout --- */
 .article-main-col {
-  flex: 1;
-  min-width: 0;
-}
-.article-aside {
-  position: sticky;
-  top: 24px;
-  align-self: flex-start;
-  width: 320px;
-  flex-shrink: 0;
-  padding-left: 32px;
-  border-left: 1px solid var(--color-border-secondary);
+  max-width: 820px;
 }
 
 /* Thin bar shown while a topic's content (notes/code/images/flashcards) is loading */
@@ -731,68 +715,6 @@ body.dark {
   background: var(--color-brand-hover);
 }
 
-/* --- Step progress rail (right-hand aside) --- */
-.step-progress-rail {
-  margin-top: 32px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.rail-heading {
-  font-family: var(--font-family-sans);
-  font-size: var(--text-base);
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: var(--color-text-tertiary);
-  margin: 0 0 12px 0;
-}
-.step-progress-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  margin: 0 -10px;
-  border-radius: var(--radius-md);
-  background: transparent;
-  border: none;
-  color: var(--color-text-secondary);
-  font-size: var(--text-base);
-  text-align: left;
-  cursor: pointer;
-  transition: background-color var(--transition-fast), color var(--transition-fast);
-}
-.step-progress-item:hover {
-  background: var(--color-bg-tertiary);
-}
-.step-progress-item.active {
-  color: var(--color-brand);
-  font-weight: 600;
-}
-.step-progress-marker {
-  flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--text-2xs);
-  font-weight: 700;
-  color: var(--color-text-tertiary);
-  background: var(--color-bg-tertiary);
-  border: 1px solid var(--color-border-secondary);
-}
-.step-progress-item.active .step-progress-marker {
-  color: white;
-  background: var(--color-brand);
-  border-color: var(--color-brand);
-}
-.step-progress-item.complete .step-progress-marker {
-  color: white;
-  background: var(--color-success);
-  border-color: var(--color-success);
-}
-
 /* --- Toasts --- */
 .toast {
   position: fixed;
@@ -895,21 +817,6 @@ body.dark {
   .main-content-area {
     padding: 20px;
     padding-top: 72px; /* clears the fixed hamburger button */
-  }
-
-  .article-layout {
-    flex-direction: column;
-    gap: 32px;
-  }
-  .article-aside {
-    width: 100%;
-    flex-shrink: 1;
-    padding-left: 0;
-    padding-top: 24px;
-    border-left: none;
-    border-top: 1px solid var(--color-border-secondary);
-    position: static;
-    top: auto;
   }
 
   .main-navbar {
