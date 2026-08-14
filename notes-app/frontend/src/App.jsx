@@ -169,7 +169,12 @@ function MainApp() {
   }
 
   if (!db) {
-    return <div style={{ padding: '40px', textAlign: 'center' }}>Loading application...</div>;
+    return (
+      <div className="app-loading-state">
+        <div className="app-loading-spinner" aria-hidden="true" />
+        <p>Preparing your workspace…</p>
+      </div>
+    );
   }
 
   const handleDbUpdate = (newDb) => {

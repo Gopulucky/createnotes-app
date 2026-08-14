@@ -516,7 +516,85 @@ body.dark {
   100% { background-position: -200% 0; }
 }
 
-/* --- Topic meta bar: difficulty, status, save indicator, PDF export --- */
+/* Full-page loading state shown once, before the first /api/data response lands */
+.app-loading-state {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: var(--color-text-secondary);
+  font-size: var(--text-lg);
+}
+.app-loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--color-border-primary);
+  border-top-color: var(--color-brand);
+  border-radius: 50%;
+  animation: app-loading-spin 0.8s linear infinite;
+}
+@keyframes app-loading-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* --- Topic info row: difficulty, est. reading time, course progress --- */
+.topic-info-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.topic-info-text {
+  color: var(--color-text-tertiary);
+  font-size: var(--text-base);
+}
+
+/* --- Primary "continue" CTA — the one answer to "what do I do now?" --- */
+.topic-primary-cta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.primary-cta-btn {
+  padding: 13px 24px;
+  background: var(--color-brand);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: var(--text-lg);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), transform var(--transition-fast);
+}
+.primary-cta-btn:hover {
+  background: var(--color-brand-hover);
+}
+.primary-cta-caption {
+  color: var(--color-text-tertiary);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.topic-complete-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-easy);
+  background: var(--color-easy-bg);
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  font-weight: 500;
+  margin-bottom: 20px;
+  width: fit-content;
+}
+
+/* --- Topic meta bar: status control, save indicator, PDF export (quieter, secondary row) --- */
 .topic-meta-bar {
   display: flex;
   justify-content: space-between;
@@ -525,7 +603,6 @@ body.dark {
   gap: 12px;
   margin-bottom: 24px;
 }
-.topic-meta-bar-left,
 .topic-meta-bar-right {
   display: flex;
   align-items: center;
@@ -576,18 +653,19 @@ body.dark {
   color: var(--color-hard);
 }
 
-.ghost-btn-sm {
-  padding: 6px 12px;
-  background: var(--color-bg-secondary);
-  border: 1px solid var(--color-border-primary);
-  border-radius: var(--radius-sm);
+.ghost-link-sm {
+  padding: 4px 2px;
+  background: transparent;
+  border: none;
   font-size: var(--text-sm);
-  color: var(--color-text-primary);
+  color: var(--color-text-tertiary);
   cursor: pointer;
-  transition: background-color var(--transition-fast);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color var(--transition-fast);
 }
-.ghost-btn-sm:hover {
-  background: var(--color-bg-tertiary);
+.ghost-link-sm:hover {
+  color: var(--color-text-primary);
 }
 
 /* --- Guided step-flow (Key Concepts / Images / Text Notes) --- */
@@ -670,10 +748,37 @@ body.dark {
 }
 
 .step-editable {
+  position: relative;
   min-height: 100px;
   padding: 4px;
   cursor: pointer;
   line-height: 1.6;
+}
+
+.step-edit-affordance {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-primary);
+  color: var(--color-text-tertiary);
+  opacity: 0;
+  transition: opacity var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+  cursor: pointer;
+}
+.step-editable:hover .step-edit-affordance,
+.step-edit-affordance:focus-visible {
+  opacity: 1;
+}
+.step-edit-affordance:hover {
+  color: var(--color-brand);
+  border-color: var(--color-brand);
 }
 
 .step-empty-hint {
