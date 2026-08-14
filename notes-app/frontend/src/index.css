@@ -66,6 +66,11 @@
   --radius-xl: 20px;
   --radius-full: 9999px;
 
+  /* Comfortable reading measure. Prose is capped at this even when its
+     container is wider — long lines are harder to read, so extra width goes
+     to images/code/flashcards instead of stretching paragraphs. */
+  --measure: 72ch;
+
   /* Transition durations */
   --transition-fast: 150ms ease;
   --transition-normal: 250ms ease;
@@ -506,9 +511,19 @@ body.dark {
   box-shadow: 0 0 0 3px rgba(67, 56, 202, 0.12);
 }
 
-/* --- Article layout --- */
+/* --- Article layout ---
+   The column is wide so that images, the code editor and flashcards get real
+   room on a large monitor. Prose inside it is capped at --measure separately,
+   so widening the page never lengthens a line of text past comfort. */
 .article-main-col {
-  max-width: 820px;
+  max-width: 1200px;
+}
+
+/* Everything text-first inside a step is held to the reading measure. */
+.step-editable,
+.step-section-body > .step-empty-hint,
+.step-section-body > .notes-editor-placeholder {
+  max-width: var(--measure);
 }
 
 /* Thin bar shown while a topic's content (notes/code/images/flashcards) is loading */
