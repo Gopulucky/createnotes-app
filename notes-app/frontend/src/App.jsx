@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Routes, Route, useParams, useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import Article from './components/Article';
@@ -19,7 +19,7 @@ export const slugify = (text) => {
     .replace(/-+$/, '');
 };
 
-function CourseLayout({ db, onDbUpdate, isDarkMode, toggleTheme }) {
+function CourseLayout({ db, onDbUpdate, onCompletionChange, isDarkMode, toggleTheme }) {
   const { courseSlug, topicSlug } = useParams();
   const navigate = useNavigate();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -81,7 +81,7 @@ function CourseLayout({ db, onDbUpdate, isDarkMode, toggleTheme }) {
       <Sidebar
         courseData={activeCourse}
         activeTopicId={activeTopic?.id}
-        progressState={db.progress || {}}
+        completionState={db.completion || {}}
         onDbUpdate={onDbUpdate}
         isDarkMode={isDarkMode}
         toggleTheme={toggleTheme}
@@ -93,8 +93,8 @@ function CourseLayout({ db, onDbUpdate, isDarkMode, toggleTheme }) {
         <Article
           topic={activeTopic}
           flatTopics={flatTopics}
-          progressState={db.progress || {}}
-          onDbUpdate={onDbUpdate}
+          completionState={db.completion || {}}
+          onCompletionChange={onCompletionChange}
         />
       ) : (
         <main className="main-content-area">
@@ -149,6 +149,24 @@ function MainApp() {
 
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
+  // Article reports its live fill state as the user edits, so the sidebar ring and
+  // course percentage move immediately instead of waiting for the next /api/data.
+  // Bails out when nothing changed, so it can't loop with Article's reporting effect.
+  // Must stay above the early returns below — a hook after them runs conditionally.
+  const handleCompletionChange = useCallback((topicId, completion) => {
+    setDb(prev => {
+      if (!prev) return prev;
+      const current = prev.completion?.[topicId];
+      if (current
+        && current.keyConcepts === completion.keyConcepts
+        && current.images === completion.images
+        && current.notes === completion.notes) {
+        return prev;
+      }
+      return { ...prev, completion: { ...(prev.completion || {}), [topicId]: completion } };
+    });
+  }, []);
+
   if (!currentUser) {
     return <Home isDarkMode={isDarkMode} toggleTheme={toggleTheme} />;
   }
@@ -193,18 +211,18 @@ function MainApp() {
             element={
               <CourseDashboard
                 courses={db.courses || []}
-                progressState={db.progress || {}}
+                completionState={db.completion || {}}
                 onDbUpdate={handleDbUpdate}
               />
             }
           />
           <Route
             path="/course/:courseSlug"
-            element={<CourseLayout db={db} onDbUpdate={handleDbUpdate} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />}
+            element={<CourseLayout db={db} onDbUpdate={handleDbUpdate} onCompletionChange={handleCompletionChange} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />}
           />
           <Route
             path="/course/:courseSlug/topic/:topicSlug"
-            element={<CourseLayout db={db} onDbUpdate={handleDbUpdate} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />}
+            element={<CourseLayout db={db} onDbUpdate={handleDbUpdate} onCompletionChange={handleCompletionChange} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />}
           />
           <Route
             path="/import"

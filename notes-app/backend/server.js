@@ -128,7 +128,7 @@ app.use('/api', authenticateUser);
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
-// Lightweight: course/module/topic structure + progress map only.
+// Lightweight: course/module/topic structure + a per-topic completion map only.
 // Deliberately excludes notes/codeNotes/images/keyConcepts/flashcards/expectedOutput/codeMeta —
 // those are fetched per-topic on demand (see getTopicContent) so the app doesn't have to
 // download every topic's base64 images just to render the sidebar.
@@ -139,13 +139,33 @@ const getCourseStructure = async (ownerId) => {
 
     // Scope progress to this user's own topics only.
     const topicIds = courses.flatMap(c => (c.modules || []).flatMap(m => (m.topics || []).map(t => t.id)));
-    const progressList = await TopicData.find({ topicId: { $in: topicIds } }, 'topicId progress').lean();
-    const progress = {};
-    for (const td of progressList) {
-      if (td.progress) progress[td.topicId] = td.progress;
+
+    // Which of the three Learn steps each topic has content for. Computed with an
+    // aggregation rather than a find(), so the base64 image arrays are reduced to a
+    // count inside Mongo and never travel to the app server at all — that's the whole
+    // reason this function avoids the content fields in the first place.
+    const fillList = await TopicData.aggregate([
+      { $match: { topicId: { $in: topicIds } } },
+      {
+        $project: {
+          _id: 0,
+          topicId: 1,
+          // $trim before measuring length: a whitespace-only save must not count as
+          // filled here while Article.jsx's own .trim() check (its local, un-saved
+          // source of truth) disagrees.
+          keyConcepts: { $gt: [{ $strLenCP: { $trim: { input: { $ifNull: ['$keyConcepts', ''] } } } }, 0] },
+          images: { $gt: [{ $size: { $ifNull: ['$images', []] } }, 0] },
+          notes: { $gt: [{ $strLenCP: { $trim: { input: { $ifNull: ['$notes', ''] } } } }, 0] },
+        },
+      },
+    ]);
+
+    const completion = {};
+    for (const f of fillList) {
+      completion[f.topicId] = { keyConcepts: f.keyConcepts, images: f.images, notes: f.notes };
     }
 
-    return { courses, progress };
+    return { courses, completion };
   } catch (err) {
     console.error('Error fetching course structure:', err);
     throw err;
@@ -316,19 +336,10 @@ const updateTopicData = async (req, res, field, val) => {
 
 // Progress also lives in the lightweight course structure (drives sidebar/dashboard
 // progress bars), so it returns that instead of single-topic content.
-app.post('/api/progress', async (req, res) => {
-  try {
-    if (!await userOwnsTopic(req.uid, req.body.topicId)) {
-      return res.status(404).json({ error: 'Topic not found' });
-    }
-    await TopicData.findOneAndUpdate(
-      { topicId: req.body.topicId },
-      { progress: req.body.status, ownerId: req.uid },
-      { upsert: true }
-    );
-    res.json(await getCourseStructure(req.uid));
-  } catch (err) { res.status(500).json({ error: 'Server Error' }); }
-});
+// NOTE: /api/progress was removed — a topic's progress is now derived from which of
+// the three Learn sections have content (see getCourseStructure), rather than from a
+// status the user sets by hand. The TopicData.progress field is left in place so old
+// documents keep validating, but nothing reads or writes it.
 app.post('/api/notes', (req, res) => updateTopicData(req, res, 'notes', req.body.content));
 app.post('/api/codeNotes', (req, res) => updateTopicData(req, res, 'codeNotes', req.body.content));
 app.post('/api/keyConcepts', (req, res) => updateTopicData(req, res, 'keyConcepts', req.body.content));

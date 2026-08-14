@@ -6,6 +6,7 @@ import Flashcards from './Flashcards';
 import ConfirmDialog from './ui/ConfirmDialog';
 import Toast from './ui/Toast';
 import { useToast } from '../hooks/useToast';
+import { isTopicComplete } from '../lib/completion';
 
 // Monaco is a multi-MB dependency — only fetch it when the Code tab is actually opened.
 const Editor = lazy(() => import('@monaco-editor/react'));
@@ -92,7 +93,7 @@ function EditableBlock({ onEdit, emptyHint, children, hasContent }) {
   );
 }
 
-export default function Article({ topic, flatTopics, progressState, onDbUpdate }) {
+export default function Article({ topic, flatTopics, completionState, onCompletionChange }) {
   const [localNotes, setLocalNotes] = useState('');
   const [localCode, setLocalCode] = useState('');
   const [localKeyConcepts, setLocalKeyConcepts] = useState('');
@@ -193,6 +194,19 @@ export default function Article({ topic, flatTopics, progressState, onDbUpdate }
     return () => { cancelled = true; };
   }, [topic]);
 
+  // Report this topic's fill state upward so the sidebar ring and the course
+  // percentage track edits as they happen, rather than only after a refetch.
+  // Declared above the `!topic` early return so hook order stays stable.
+  const hasKeyConcepts = !!localKeyConcepts.trim();
+  const hasImages = localImages.length > 0;
+  const hasNotes = !!localNotes.trim();
+  useEffect(() => {
+    if (!topic || contentLoading) return;
+    onCompletionChange?.(topic.id, {
+      keyConcepts: hasKeyConcepts, images: hasImages, notes: hasNotes,
+    });
+  }, [topic, contentLoading, hasKeyConcepts, hasImages, hasNotes, onCompletionChange]);
+
   if (!topic) return <main className="main-content-area">Select or create a topic</main>;
 
   const currentIndex = flatTopics.findIndex(t => t.id === topic.id);
@@ -206,17 +220,6 @@ export default function Article({ topic, flatTopics, progressState, onDbUpdate }
     if (currentIndex < flatTopics.length - 1) {
       navigate(`/course/${courseSlug}/topic/${slugify(flatTopics[currentIndex + 1].title)}`);
     }
-  };
-
-  const handleStatusChange = async (status) => {
-    try {
-      const res = await fetch('/api/progress', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topicId: topic.id, status })
-      });
-      onDbUpdate(await res.json());
-    } catch (err) { console.error(err); }
   };
 
   const handleNotesBlur = () => {
@@ -317,7 +320,6 @@ export default function Article({ topic, flatTopics, progressState, onDbUpdate }
     persist('/api/flashcards', { topicId: topic.id, flashcards: newCards });
   };
 
-  const currentStatus = progressState[topic.id] || 'not-started';
   const topicImages = localImages;
   const topicFlashcards = localFlashcards;
 
@@ -329,6 +331,7 @@ export default function Article({ topic, flatTopics, progressState, onDbUpdate }
     images: topicImages.length > 0,
     notes: !!localNotes.trim(),
   };
+  const stepsFilled = ARTICLE_STEPS.filter(s => stepComplete[s.key]).length;
   const currentStepIndex = ARTICLE_STEPS.findIndex(s => s.key === openStep);
   const currentStep = ARTICLE_STEPS[currentStepIndex] || ARTICLE_STEPS[0];
   const nextStep = ARTICLE_STEPS[currentStepIndex + 1];
@@ -356,7 +359,7 @@ export default function Article({ topic, flatTopics, progressState, onDbUpdate }
   })();
 
   const courseTotalCount = flatTopics.length;
-  const courseCompletedCount = flatTopics.filter(t => progressState[t.id] === 'mastered').length;
+  const courseCompletedCount = flatTopics.filter(t => isTopicComplete(completionState[t.id])).length;
 
   // One primary "what's next" action, surfaced right below the title instead of being
   // buried at the bottom of the page. Flashcards is the last stage, so there's no further
@@ -397,20 +400,12 @@ export default function Article({ topic, flatTopics, progressState, onDbUpdate }
         )}
 
         <div className="no-print topic-meta-bar">
-          <div className="status-segmented">
-            <button
-              className={currentStatus === 'not-started' ? 'active' : ''}
-              onClick={() => handleStatusChange('not-started')}
-            >Not Started</button>
-            <button
-              className={currentStatus === 'in-progress' ? 'active' : ''}
-              onClick={() => handleStatusChange('in-progress')}
-            >In Progress</button>
-            <button
-              className={`mastered ${currentStatus === 'mastered' ? 'active' : ''}`}
-              onClick={() => handleStatusChange('mastered')}
-            >Mastered</button>
-          </div>
+          {/* Completion is derived from the content itself — there's no status to set. */}
+          <span className={`topic-fill-summary ${stepsFilled === ARTICLE_STEPS.length ? 'complete' : ''}`}>
+            {stepsFilled === ARTICLE_STEPS.length
+              ? 'All sections filled in'
+              : `${stepsFilled} of ${ARTICLE_STEPS.length} sections filled in`}
+          </span>
           <div className="topic-meta-bar-right">
             {saveIndicatorText && (
               <span className={`save-indicator ${saveStatus}`}>{saveIndicatorText}</span>

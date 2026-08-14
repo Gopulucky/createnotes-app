@@ -633,36 +633,19 @@ body.dark {
   gap: 12px;
 }
 
-.status-segmented {
-  display: inline-flex;
-  border: 1px solid var(--color-border-secondary);
-  border-radius: var(--radius-full);
-  overflow: hidden;
-}
-.status-segmented button {
-  padding: 6px 14px;
+/* Read-only summary of how much of this topic is filled in. Replaced a manual
+   Not Started / In Progress / Mastered control — progress is now derived from
+   the content itself, so there is nothing here to click. */
+.topic-fill-summary {
   font-size: var(--text-sm);
-  color: var(--color-text-secondary);
-  background: transparent;
-  border: none;
-  border-right: 1px solid var(--color-border-secondary);
-  cursor: pointer;
-  transition: background-color var(--transition-fast), color var(--transition-fast);
+  font-weight: 500;
+  color: var(--color-text-tertiary);
 }
-.status-segmented button:last-child {
-  border-right: none;
-}
-.status-segmented button:hover {
-  background: var(--color-bg-tertiary);
-}
-.status-segmented button.active {
-  background: var(--color-easy-bg);
+.topic-fill-summary.complete {
   color: var(--color-easy);
-  font-weight: 600;
 }
-.status-segmented button.mastered.active {
-  background: var(--color-success);
-  color: white;
+body.dark .topic-fill-summary.complete {
+  color: #34d399;
 }
 
 .save-indicator {
@@ -2013,18 +1996,61 @@ body.dark .modal-error {
 }
 
 .play-icon {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
   stroke: var(--color-text-tertiary);
   transition: stroke var(--transition-fast);
 }
 
-.play-icon.mastered {
+.play-icon.complete {
   stroke: var(--color-success);
 }
+.play-icon.partial {
+  stroke: var(--color-brand);
+}
 
-.accordion-item.active .play-icon.mastered {
+.accordion-item.active .play-icon,
+.accordion-item.active .play-icon.complete,
+.accordion-item.active .play-icon.partial {
   stroke: white; /* Contrast against active brand color */
+}
+
+/* --- Progress ring around a topic icon (share of the 3 Learn steps filled) --- */
+.progress-ring {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.progress-ring-svg {
+  position: absolute;
+  inset: 0;
+  /* Start the arc at 12 o'clock instead of 3 o'clock. */
+  transform: rotate(-90deg);
+}
+.progress-ring-track {
+  stroke: var(--color-border-secondary);
+}
+.progress-ring-arc {
+  stroke: var(--color-brand);
+  transition: stroke-dashoffset var(--transition-normal), stroke var(--transition-fast);
+}
+.progress-ring.complete .progress-ring-arc {
+  stroke: var(--color-success);
+}
+.progress-ring-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+
+.accordion-item.active .progress-ring-track {
+  stroke: rgba(255, 255, 255, 0.35);
+}
+.accordion-item.active .progress-ring-arc {
+  stroke: white;
 }
 
 .accordion-item-details {
