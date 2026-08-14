@@ -6,7 +6,11 @@ import FormDialog from './ui/FormDialog';
 import ConfirmDialog from './ui/ConfirmDialog';
 import Toast from './ui/Toast';
 import { useToast } from '../hooks/useToast';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 import { coursePercent } from '../lib/completion';
+
+const SparkleIcon = () => (<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"></path><circle cx="12" cy="12" r="3"></circle></svg>);
+const CloseIcon = () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>);
 
 const EditIcon = () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>);
 const TrashIcon = () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>);
@@ -34,6 +38,7 @@ export default function CourseDashboard({ courses, completionState, onDbUpdate }
   const { currentUser } = useAuth();
   const [filter, setFilter] = useState('all');
   const { toast, showToast } = useToast();
+  const [aiBannerDismissed, setAiBannerDismissed] = useLocalStorage('createnotes:ai-import-banner-dismissed', false);
 
   // courseDialog: null | { mode: 'add' } | { mode: 'edit', id }
   const [courseDialog, setCourseDialog] = useState(null);
@@ -123,6 +128,31 @@ export default function CourseDashboard({ courses, completionState, onDbUpdate }
         </div>
       ) : (
         <>
+          {/* The empty state above already promotes AI import directly, so this only
+              shows once there's a real dashboard to sit inside — and only until the
+              user dismisses it once, not once per visit. */}
+          {!aiBannerDismissed && (
+            <div className="dashboard-ai-banner">
+              <span className="dashboard-ai-banner-icon" aria-hidden="true"><SparkleIcon /></span>
+              <div className="dashboard-ai-banner-content">
+                <p className="dashboard-ai-banner-title">AI-powered import</p>
+                <p className="dashboard-ai-banner-text">
+                  Drop in a folder of lecture screenshots and a free Gemini key — it writes notes,
+                  key concepts, code, and flashcards for you.
+                </p>
+              </div>
+              <Link to="/import" className="dashboard-ai-banner-cta">Import Screenshots →</Link>
+              <button
+                className="dashboard-ai-banner-close"
+                onClick={() => setAiBannerDismissed(true)}
+                aria-label="Dismiss"
+                title="Dismiss"
+              >
+                <CloseIcon />
+              </button>
+            </div>
+          )}
+
           <div className="dashboard-filters">
             {FILTERS.map(f => (
               <button

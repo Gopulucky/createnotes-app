@@ -2224,6 +2224,92 @@ body.dark .modal-error {
   margin: 0;
 }
 
+/* --- AI import feature banner (dashboard) --- */
+.dashboard-ai-banner {
+  position: relative; /* anchors the close button at every size */
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 52px 18px 20px; /* right padding reserves room for the close button */
+  margin-bottom: 24px;
+  background: var(--color-brand-light);
+  border: 1px solid var(--color-brand);
+  border-radius: var(--radius-lg);
+}
+body.dark .dashboard-ai-banner {
+  border-color: rgba(129, 140, 248, 0.4);
+}
+.dashboard-ai-banner-icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--color-bg-primary);
+  color: var(--color-brand);
+}
+.dashboard-ai-banner-content {
+  flex: 1;
+  min-width: 200px;
+}
+.dashboard-ai-banner-title {
+  font-family: var(--font-family-display);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0 0 2px 0;
+}
+.dashboard-ai-banner-text {
+  font-size: var(--text-base);
+  color: var(--color-text-secondary);
+  margin: 0;
+  line-height: 1.5;
+}
+.dashboard-ai-banner-cta {
+  flex-shrink: 0;
+  padding: 10px 18px;
+  border-radius: var(--radius-md);
+  background: var(--color-brand);
+  color: white;
+  font-weight: 600;
+  font-size: var(--text-base);
+  white-space: nowrap;
+  transition: background-color var(--transition-fast);
+}
+.dashboard-ai-banner-cta:hover {
+  background: var(--color-brand-hover);
+}
+.dashboard-ai-banner-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  color: var(--color-text-tertiary);
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+.dashboard-ai-banner-close:hover {
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+}
+
+@media (max-width: 640px) {
+  .dashboard-ai-banner {
+    flex-wrap: wrap;
+    padding: 16px 44px 16px 16px;
+  }
+  .dashboard-ai-banner-cta {
+    width: 100%;
+    text-align: center;
+  }
+}
+
 .dashboard-filters {
   display: flex;
   flex-wrap: wrap;
