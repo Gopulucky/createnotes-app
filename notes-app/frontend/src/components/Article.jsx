@@ -3,6 +3,9 @@ import { useNavigate, useParams } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import { slugify } from '../App';
 import Flashcards from './Flashcards';
+import ConfirmDialog from './ui/ConfirmDialog';
+import Toast from './ui/Toast';
+import { useToast } from '../hooks/useToast';
 
 // Monaco is a multi-MB dependency — only fetch it when the Code tab is actually opened.
 const Editor = lazy(() => import('@monaco-editor/react'));
@@ -97,13 +100,13 @@ export default function Article({ topic, flatTopics, progressState, onDbUpdate }
   const [isOutputRevealed, setIsOutputRevealed] = useState(false);
   const [openStep, setOpenStep] = useState(ARTICLE_STEPS[0].key);
   const [activeView, setActiveView] = useState('article');
+  const [deleteImageUrl, setDeleteImageUrl] = useState(null);
 
   // Autosave feedback
   const [saveStatus, setSaveStatus] = useState('idle'); // 'idle' | 'saving' | 'saved' | 'error'
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const [nowTick, setNowTick] = useState(() => Date.now());
-  const [toast, setToast] = useState(null);
-  const toastTimerRef = useRef(null);
+  const { toast, showToast } = useToast();
 
   const fileInputRef = useRef(null);
   const accordionRef = useRef(null);
@@ -116,14 +119,6 @@ export default function Article({ topic, flatTopics, progressState, onDbUpdate }
     const id = setInterval(() => setNowTick(Date.now()), 15000);
     return () => clearInterval(id);
   }, []);
-
-  useEffect(() => () => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current); }, []);
-
-  const showToast = (message, tone = 'success') => {
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    setToast({ message, tone });
-    toastTimerRef.current = setTimeout(() => setToast(null), 3000);
-  };
 
   // Shared save path for every autosaved field, so one indicator in the top bar reflects
   // saves happening in any of the three tabs (Learn / Try the Code / Quick Review).
@@ -263,23 +258,16 @@ export default function Article({ topic, flatTopics, progressState, onDbUpdate }
     }
   };
 
-  const handleDeleteImage = async (imageUrl) => {
-    if (!confirm("Are you sure you want to remove this image?")) return;
-    try {
-      const res = await fetch('/api/images', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topicId: topic.id, imageUrl })
-      });
-
-      if (!res.ok) throw new Error('Delete failed');
-      const data = await res.json();
-      setLocalImages(data.images || []);
-      showToast('Image removed');
-    } catch (e) {
-      console.error(e);
-      showToast('Failed to delete image', 'error');
-    }
+  const handleDeleteImage = async () => {
+    const res = await fetch('/api/images', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topicId: topic.id, imageUrl: deleteImageUrl })
+    });
+    if (!res.ok) throw new Error('Could not remove the image — please try again.');
+    const data = await res.json();
+    setLocalImages(data.images || []);
+    showToast('Image removed');
   };
 
   const handleCopyCode = () => {
@@ -421,25 +409,22 @@ export default function Article({ topic, flatTopics, progressState, onDbUpdate }
         </div>
 
         {/* Tab Navigation Bar */}
-        <div className="no-print" style={{ display: 'flex', borderBottom: '1px solid var(--color-border-primary)', marginBottom: '32px' }}>
-          <button
-            onClick={() => setActiveView('article')}
-            style={{ padding: '12px 24px', background: 'transparent', border: 'none', borderBottom: activeView === 'article' ? '2px solid var(--color-brand)' : '2px solid transparent', color: activeView === 'article' ? 'var(--color-text-primary)' : 'var(--color-text-secondary)', fontWeight: activeView === 'article' ? 600 : 400, cursor: 'pointer', transition: 'all 0.2s', fontSize: '0.95rem' }}
-          >
-            Learn
-          </button>
-          <button
-            onClick={() => setActiveView('code')}
-            style={{ padding: '12px 24px', background: 'transparent', border: 'none', borderBottom: activeView === 'code' ? '2px solid var(--color-brand)' : '2px solid transparent', color: activeView === 'code' ? 'var(--color-text-primary)' : 'var(--color-text-secondary)', fontWeight: activeView === 'code' ? 600 : 400, cursor: 'pointer', transition: 'all 0.2s', fontSize: '0.95rem' }}
-          >
-            Try the Code
-          </button>
-          <button
-            onClick={() => setActiveView('flashcards')}
-            style={{ padding: '12px 24px', background: 'transparent', border: 'none', borderBottom: activeView === 'flashcards' ? '2px solid var(--color-brand)' : '2px solid transparent', color: activeView === 'flashcards' ? 'var(--color-text-primary)' : 'var(--color-text-secondary)', fontWeight: activeView === 'flashcards' ? 600 : 400, cursor: 'pointer', transition: 'all 0.2s', fontSize: '0.95rem' }}
-          >
-            Quick Review
-          </button>
+        <div className="no-print tabs" role="tablist">
+          {[
+            { key: 'article', label: 'Learn' },
+            { key: 'code', label: 'Try the Code' },
+            { key: 'flashcards', label: 'Quick Review' },
+          ].map(tab => (
+            <button
+              key={tab.key}
+              role="tab"
+              aria-selected={activeView === tab.key}
+              className={`tab-btn ${activeView === tab.key ? 'active' : ''}`}
+              onClick={() => setActiveView(tab.key)}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
         {activeView === 'article' && (
@@ -473,20 +458,17 @@ export default function Article({ topic, flatTopics, progressState, onDbUpdate }
               stepKey="images" num={2} title="Visual Examples"
               complete={stepComplete.images} isOpen={openStep === 'images'} onOpen={setOpenStep}
             >
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }} className="no-print">
+              <div className="no-print step-upload-row">
                 <input type="file" accept="image/*" style={{ display: 'none' }} ref={fileInputRef} onChange={handleImageUpload} />
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  style={{ padding: '8px 16px', background: 'var(--color-brand)', color: 'white', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem' }}
-                >
+                <button className="btn-primary" onClick={() => fileInputRef.current?.click()}>
                   + Upload Image
                 </button>
               </div>
 
               {topicImages.length > 0 ? (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px', marginTop: '16px' }}>
+                <div className="image-grid">
                   {topicImages.map((img, i) => (
-                    <div key={i} style={{ position: 'relative', width: '100%', minHeight: '120px', backgroundColor: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border-primary)', boxShadow: 'var(--shadow-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                    <div key={i} className="image-tile">
                       <img
                         src={img.startsWith('http') || img.startsWith('data:') ? img : `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}${img}`}
                         alt="Uploaded reference"
@@ -497,12 +479,12 @@ export default function Article({ topic, flatTopics, progressState, onDbUpdate }
                           e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="%239ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline><line x1="3" y1="3" x2="21" y2="21"></line></svg>';
                           e.target.style.objectFit = 'none';
                         }}
-                        style={{ width: '100%', height: '100%', maxHeight: '400px', objectFit: 'contain' }}
                       />
                       <button
-                        className="no-print"
-                        onClick={() => handleDeleteImage(img)}
-                        style={{ position: 'absolute', top: '12px', right: '12px', background: 'rgba(0,0,0,0.6)', color: 'white', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        className="no-print image-tile-delete"
+                        onClick={() => setDeleteImageUrl(img)}
+                        aria-label="Remove image"
+                        title="Remove image"
                       >
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                       </button>
@@ -552,43 +534,36 @@ export default function Article({ topic, flatTopics, progressState, onDbUpdate }
           <>
             <div id="code-editor">
               <h2>Code Implementations</h2>
-              <div className="code-editor-wrapper" style={{ border: '1px solid var(--color-border-primary)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', backgroundColor: '#1e1e1e', marginBottom: '16px' }}>
+              <div className="code-editor-wrapper code-panel">
 
                 {/* ChatGPT-Style Code Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#2d333b', padding: '8px 16px', borderBottom: '1px solid #111' }}>
+                <div className="code-panel-header">
                   {isEditingCodeMeta ? (
                     <input
                       type="text"
+                      className="code-filename-input"
                       value={localCodeMeta.filename}
                       onChange={(e) => setLocalCodeMeta({ ...localCodeMeta, filename: e.target.value })}
                       onBlur={handleCodeMetaBlur}
                       autoFocus
-                      style={{ background: '#1e1e1e', color: '#7ee787', border: '1px solid #444', borderRadius: '4px', padding: '2px 8px', fontSize: '0.75rem', fontFamily: 'monospace', outline: 'none' }}
+                      aria-label="File name"
                     />
                   ) : (
                     <span
+                      className="code-filename"
                       onClick={() => setIsEditingCodeMeta(true)}
-                      style={{ color: '#8b949e', fontSize: '0.75rem', fontFamily: 'monospace', cursor: 'text', padding: '2px 8px', borderRadius: '4px' }}
-                      onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'}
-                      onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                       title="Click to edit filename"
                     >
                       {localCodeMeta.filename}
                     </span>
                   )}
-                  <button
-                    id="copy-code-btn"
-                    onClick={handleCopyCode}
-                    style={{ display: 'flex', alignItems: 'center', background: 'transparent', border: 'none', color: '#8b949e', fontSize: '0.75rem', cursor: 'pointer', transition: 'color 0.2s' }}
-                    onMouseOver={(e) => e.currentTarget.style.color = '#c9d1d9'}
-                    onMouseOut={(e) => e.currentTarget.style.color = '#8b949e'}
-                  >
+                  <button id="copy-code-btn" className="code-copy-btn" onClick={handleCopyCode}>
                     <CopyIcon /> <span id="copy-code-btn-text">Copy code</span>
                   </button>
                 </div>
 
-                <div style={{ padding: '16px 0' }}>
-                  <Suspense fallback={<div style={{ height: '350px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8b949e', fontSize: '0.875rem' }}>Loading editor…</div>}>
+                <div className="code-editor-slot">
+                  <Suspense fallback={<div className="code-editor-loading">Loading editor…</div>}>
                     <Editor
                       height="350px"
                       theme="vs-dark"
@@ -611,77 +586,47 @@ export default function Article({ topic, flatTopics, progressState, onDbUpdate }
                 </div>
               </div>
               <div className="no-print" style={{ textAlign: 'right' }}>
-                <button
-                  onClick={handleExportCode}
-                  disabled={exporting || !localCode.trim()}
-                  style={{ padding: '8px 16px', background: 'var(--color-brand)', color: 'white', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem', opacity: (!localCode.trim() || exporting) ? 0.5 : 1 }}
-                >
-                  {exporting ? 'Exporting...' : 'Export Code to Git'}
+                <button className="btn-primary" onClick={handleExportCode} disabled={exporting || !localCode.trim()}>
+                  {exporting ? 'Exporting…' : 'Export Code to Git'}
                 </button>
               </div>
 
               {/* Expected Output Puzzle UI */}
-              <div style={{ marginTop: '24px', background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-primary)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-                <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--color-border-primary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <h3 style={{ fontFamily: 'var(--font-family-sans)', fontSize: '0.875rem', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--color-text-secondary)', margin: 0 }}>Expected Output</h3>
+              <div className="output-panel">
+                <div className="output-panel-header">
+                  <h3>Expected Output</h3>
                   {!isEditingOutput && (
-                    <button
-                      className="no-print"
-                      onClick={() => setIsEditingOutput(true)}
-                      style={{ background: 'transparent', border: 'none', color: 'var(--color-brand)', cursor: 'pointer', fontSize: '0.8rem', display: 'flex', alignItems: 'center' }}
-                    >
+                    <button className="no-print output-edit-btn" onClick={() => setIsEditingOutput(true)}>
                       <EditIcon /> Edit Output
                     </button>
                   )}
                 </div>
 
-                <div style={{ padding: '16px', background: '#0d1117' }}>
+                <div className="output-panel-body">
                   {isEditingOutput ? (
                     <textarea
-                      className="notes-editor-placeholder"
-                      style={{ minHeight: '100px', width: '100%', background: 'transparent', color: '#c9d1d9', border: '1px solid #30363d', padding: '12px', fontFamily: 'monospace' }}
-                      placeholder="Paste the exact output here... (Auto-saves on blur)"
+                      className="output-textarea"
+                      placeholder="Paste the exact output here… (Auto-saves when you click away)"
                       value={localExpectedOutput}
                       onChange={(e) => setLocalExpectedOutput(e.target.value)}
                       onBlur={handleOutputBlur}
                       autoFocus
                     />
                   ) : (
-                    <div style={{ position: 'relative' }}>
-                      <div
-                        style={{
-                          color: localExpectedOutput ? '#7ee787' : 'var(--color-text-tertiary)',
-                          fontFamily: localExpectedOutput ? 'monospace' : 'inherit',
-                          whiteSpace: 'pre-wrap',
-                          minHeight: '60px',
-                          filter: (!isOutputRevealed && localExpectedOutput) ? 'blur(5px)' : 'none',
-                          opacity: (!isOutputRevealed && localExpectedOutput) ? 0.4 : 1,
-                          transition: 'all 0.3s ease',
-                          userSelect: isOutputRevealed ? 'auto' : 'none'
-                        }}
-                      >
-                        {localExpectedOutput || "No expected output defined yet. Click Edit Output to add some!"}
+                    <div className="output-value">
+                      <div className={`output-text ${!localExpectedOutput ? 'empty' : ''} ${(!isOutputRevealed && localExpectedOutput) ? 'hidden' : ''}`}>
+                        {localExpectedOutput || 'No expected output defined yet. Click Edit Output to add some.'}
                       </div>
 
                       {!isOutputRevealed && localExpectedOutput && (
-                        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <button
-                            onClick={() => setIsOutputRevealed(true)}
-                            style={{ display: 'flex', alignItems: 'center', background: 'var(--color-brand)', color: 'white', border: 'none', padding: '10px 20px', borderRadius: 'var(--radius-md)', fontWeight: 600, cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', transition: 'transform 0.2s ease' }}
-                            onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                            onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                          >
+                        <div className="output-reveal-overlay">
+                          <button className="btn-primary" onClick={() => setIsOutputRevealed(true)}>
                             <RevealIcon /> Reveal Output
                           </button>
                         </div>
                       )}
                       {isOutputRevealed && localExpectedOutput && (
-                        <button
-                          onClick={() => setIsOutputRevealed(false)}
-                          style={{ position: 'absolute', top: '-8px', right: '0', background: 'transparent', color: '#8b949e', border: 'none', fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                          onMouseOver={(e) => e.currentTarget.style.color = '#c9d1d9'}
-                          onMouseOut={(e) => e.currentTarget.style.color = '#8b949e'}
-                        >
+                        <button className="output-hide-btn" onClick={() => setIsOutputRevealed(false)}>
                           <HideIcon /> Hide Output
                         </button>
                       )}
@@ -726,9 +671,17 @@ export default function Article({ topic, flatTopics, progressState, onDbUpdate }
         </div>
       </div>
 
-      {toast && (
-        <div className={`toast toast-${toast.tone}`} role="status">{toast.message}</div>
-      )}
+      <ConfirmDialog
+        open={!!deleteImageUrl}
+        onClose={() => setDeleteImageUrl(null)}
+        onConfirm={handleDeleteImage}
+        title="Remove image"
+        message="Remove this image from the topic? This can't be undone."
+        confirmLabel="Remove image"
+        danger
+      />
+
+      <Toast toast={toast} />
     </main>
   );
 }
