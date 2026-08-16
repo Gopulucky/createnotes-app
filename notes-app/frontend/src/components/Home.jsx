@@ -36,9 +36,9 @@ const FEATURES = [
     desc: 'Flip through auto-generated or custom flashcards next to the topic they belong to — no separate app to juggle.',
   },
   {
-    icon: '⏱️',
-    title: 'Built-in focus timer',
-    desc: 'A distraction-free Pomodoro timer sits alongside every topic, so you never have to leave the page to stay on track.',
+    icon: '🧭',
+    title: 'A guided path through every topic',
+    desc: 'Key concepts, visual examples, then the lesson — one step at a time, with progress tracked automatically as you fill each one in.',
   },
 ];
 
@@ -76,7 +76,7 @@ export default function Home({ isDarkMode, toggleTheme }) {
         <h1>Turn scattered screenshots into a course you'll actually remember.</h1>
         <p className="home-subtitle">
           CreateNotes organizes your lecture screenshots, notes, and code into structured courses —
-          with AI-powered import, flashcards, and a built-in focus timer, all in one private place.
+          with AI-powered import, guided lessons, and flashcards, all in one private place.
         </p>
 
         {error && (
