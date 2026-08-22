@@ -535,18 +535,25 @@ async function callGeminiForImport(apiKey, model, batchFiles, promptOpts) {
     parts.push({ inlineData: { mimeType: f.mimetype, data: f.buffer.toString('base64') } });
   }
 
+  const payloadSizeMB = (Buffer.byteLength(JSON.stringify(parts)) / (1024 * 1024)).toFixed(1);
+  console.log(`Gemini request payload: ${payloadSizeMB} MB, ${batchFiles.length} images, model: ${model}`);
+
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
   const body = {
     contents: [{ role: 'user', parts }],
     generationConfig: { responseMimeType: 'application/json', responseSchema: IMPORT_RESPONSE_SCHEMA },
   };
 
+  let lastStatus = 0;
+  let lastErrBody = '';
+
   for (let attempt = 1; attempt <= 4; attempt++) {
     const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
     if (res.status === 429 || res.status >= 500) {
-      const errText = await res.text();
-      console.error(`Gemini API retry triggered. Status: ${res.status}. Body: ${errText.slice(0, 500)}`);
+      lastStatus = res.status;
+      lastErrBody = await res.text();
+      console.error(`Gemini API attempt ${attempt}/4 failed. Status: ${res.status}. Body: ${lastErrBody.slice(0, 500)}`);
       await new Promise(r => setTimeout(r, attempt * 8000));
       continue;
     }
@@ -559,7 +566,15 @@ async function callGeminiForImport(apiKey, model, batchFiles, promptOpts) {
     if (!text) throw new Error('Unexpected Gemini response shape');
     return JSON.parse(text);
   }
-  throw new Error('Gemini API kept failing (rate limit or server error) after 4 attempts.');
+
+  // Parse Google's error JSON to extract a human-readable message
+  let detail = `HTTP ${lastStatus}`;
+  try {
+    const parsed = JSON.parse(lastErrBody);
+    detail = parsed?.error?.message || parsed?.error?.status || detail;
+  } catch { detail += `: ${lastErrBody.slice(0, 200)}`; }
+
+  throw new Error(`Gemini API failed after 4 attempts (${detail}). Payload was ${payloadSizeMB} MB for ${batchFiles.length} images.`);
 }
 
 app.post('/api/import/generate', importUpload.array('images', 300), async (req, res) => {
