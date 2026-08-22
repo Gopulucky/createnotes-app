@@ -495,8 +495,10 @@ Return topics in the order they first appear.`;
 // Model names get retired (a hardcoded one already 404'd with "no longer available to new
 // users"), so ask the key which models it can actually use and score them, instead of
 // betting on a name staying valid.
-async function resolveGeminiModel(apiKey, requested) {
-  if (requested && requested !== 'auto') return requested;
+// Returns an ordered list of up to 3 candidate model IDs, best first.
+// If the top-ranked model is overloaded the caller can fall back to the next.
+async function resolveGeminiModels(apiKey, requested) {
+  if (requested && requested !== 'auto') return [requested];
 
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=200`);
   if (!res.ok) {
@@ -525,56 +527,65 @@ async function resolveGeminiModel(apiKey, requested) {
     return s;
   };
 
-  const best = candidates.sort((a, b) => score(b) - score(a))[0];
-  return (best.name || '').replace(/^models\//, '');
+  const ranked = candidates.sort((a, b) => score(b) - score(a));
+  return ranked.slice(0, 3).map(m => (m.name || '').replace(/^models\//, ''));
 }
 
-async function callGeminiForImport(apiKey, model, batchFiles, promptOpts) {
+async function callGeminiForImport(apiKey, modelCandidates, batchFiles, promptOpts) {
   const parts = [{ text: buildImportPrompt(batchFiles.map(f => f.basename), promptOpts) }];
   for (const f of batchFiles) {
     parts.push({ inlineData: { mimeType: f.mimetype, data: f.buffer.toString('base64') } });
   }
 
   const payloadSizeMB = (Buffer.byteLength(JSON.stringify(parts)) / (1024 * 1024)).toFixed(1);
-  console.log(`Gemini request payload: ${payloadSizeMB} MB, ${batchFiles.length} images, model: ${model}`);
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-  const body = {
-    contents: [{ role: 'user', parts }],
-    generationConfig: { responseMimeType: 'application/json', responseSchema: IMPORT_RESPONSE_SCHEMA },
-  };
 
   let lastStatus = 0;
   let lastErrBody = '';
+  let lastModel = modelCandidates[0];
 
-  for (let attempt = 1; attempt <= 4; attempt++) {
-    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  // Try each model candidate; for each model, retry up to 2 times on transient errors.
+  for (const model of modelCandidates) {
+    lastModel = model;
+    console.log(`Trying model: ${model} (payload ${payloadSizeMB} MB, ${batchFiles.length} images)`);
 
-    if (res.status === 429 || res.status >= 500) {
-      lastStatus = res.status;
-      lastErrBody = await res.text();
-      console.error(`Gemini API attempt ${attempt}/4 failed. Status: ${res.status}. Body: ${lastErrBody.slice(0, 500)}`);
-      await new Promise(r => setTimeout(r, attempt * 8000));
-      continue;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const body = {
+      contents: [{ role: 'user', parts }],
+      generationConfig: { responseMimeType: 'application/json', responseSchema: IMPORT_RESPONSE_SCHEMA },
+    };
+
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+
+      if (res.status === 429 || res.status >= 500) {
+        lastStatus = res.status;
+        lastErrBody = await res.text();
+        const isOverloaded = lastErrBody.includes('high demand') || lastErrBody.includes('overloaded') || res.status === 503;
+        console.error(`${model} attempt ${attempt}/2 failed (${res.status}). ${isOverloaded ? 'Model overloaded, will try fallback.' : 'Retrying...'}`);
+
+        if (isOverloaded) break; // skip to next model immediately, don't retry the same overloaded one
+        await new Promise(r => setTimeout(r, attempt * 6000));
+        continue;
+      }
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Gemini API error ${res.status}: ${errText.slice(0, 300)}`);
+      }
+      const data = await res.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!text) throw new Error('Unexpected Gemini response shape');
+      return { result: JSON.parse(text), model };
     }
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`Gemini API error ${res.status}: ${errText.slice(0, 300)}`);
-    }
-    const data = await res.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) throw new Error('Unexpected Gemini response shape');
-    return JSON.parse(text);
   }
 
-  // Parse Google's error JSON to extract a human-readable message
+  // All models exhausted
   let detail = `HTTP ${lastStatus}`;
   try {
     const parsed = JSON.parse(lastErrBody);
     detail = parsed?.error?.message || parsed?.error?.status || detail;
   } catch { detail += `: ${lastErrBody.slice(0, 200)}`; }
 
-  throw new Error(`Gemini API failed after 4 attempts (${detail}). Payload was ${payloadSizeMB} MB for ${batchFiles.length} images.`);
+  throw new Error(`All ${modelCandidates.length} models failed (${detail}). Tried: ${modelCandidates.join(', ')}. Payload was ${payloadSizeMB} MB for ${batchFiles.length} images.`);
 }
 
 app.post('/api/import/generate', importUpload.array('images', 300), async (req, res) => {
@@ -607,15 +618,15 @@ app.post('/api/import/generate', importUpload.array('images', 300), async (req, 
     const totalBatches = Math.ceil(namedFiles.length / BATCH_SIZE);
     send({ type: 'start', totalImages: namedFiles.length, totalBatches });
 
-    const model = await resolveGeminiModel(apiKey, requestedModel);
-    send({ type: 'progress', message: `Using model: ${model}` });
+    const modelCandidates = await resolveGeminiModels(apiKey, requestedModel);
+    send({ type: 'progress', message: `Model candidates: ${modelCandidates.join(', ')}` });
 
     for (let i = 0; i < namedFiles.length; i += BATCH_SIZE) {
       const batchNum = Math.floor(i / BATCH_SIZE) + 1;
       const batch = namedFiles.slice(i, i + BATCH_SIZE);
       send({ type: 'progress', message: `Batch ${batchNum}/${totalBatches}: analyzing ${batch.length} images...` });
 
-      const result = await callGeminiForImport(apiKey, model, batch, {
+      const { result, model: usedModel } = await callGeminiForImport(apiKey, modelCandidates, batch, {
         fixedModule: moduleName || null,
         knownModules,
       });
