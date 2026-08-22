@@ -430,7 +430,7 @@ const IMPORT_RESPONSE_SCHEMA = {
             },
           },
         },
-        required: ['module', 'title', 'images', 'notes', 'keyConcepts', 'flashcards'],
+        required: ['module', 'title', 'images', 'notes', 'keyConcepts', 'codeNotes', 'flashcards'],
       },
     },
   },
