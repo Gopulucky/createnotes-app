@@ -545,6 +545,8 @@ async function callGeminiForImport(apiKey, model, batchFiles, promptOpts) {
     const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
     if (res.status === 429 || res.status >= 500) {
+      const errText = await res.text();
+      console.error(`Gemini API retry triggered. Status: ${res.status}. Body: ${errText.slice(0, 500)}`);
       await new Promise(r => setTimeout(r, attempt * 8000));
       continue;
     }

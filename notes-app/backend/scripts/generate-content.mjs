@@ -204,7 +204,8 @@ async function callGemini(batchFiles, promptOpts) {
 
     if (res.status === 429 || res.status >= 500) {
       const wait = attempt * 8000;
-      console.warn(`  Gemini returned ${res.status}, retrying in ${wait / 1000}s (attempt ${attempt}/4)...`);
+      const errText = await res.text();
+      console.warn(`  Gemini returned ${res.status} (${errText.slice(0, 300)}), retrying in ${wait / 1000}s (attempt ${attempt}/4)...`);
       await new Promise(r => setTimeout(r, wait));
       continue;
     }
